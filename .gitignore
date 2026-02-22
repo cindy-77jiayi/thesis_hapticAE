@@ -1,23 +1,32 @@
-# Jupyter checkpoints
-.ipynb_checkpoints/
-
-# Dataset (too large for GitHub)
+# Data (too large for GitHub)
+data/
 hapticgen-dataset/
 
-# Third-party repo
+# Third-party repos
 HapticGen/
+
+# Outputs and checkpoints
+outputs/
+experiments/
+*.pt
+*.pth
+*.ckpt
+
+# Jupyter
+.ipynb_checkpoints/
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+dist/
+build/
 
-# Model checkpoints and outputs
-*.pt
-*.pth
-*.ckpt
-experiments/
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db
+
+# IDE
+.vscode/
+.idea/
