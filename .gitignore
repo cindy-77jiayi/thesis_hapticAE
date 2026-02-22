@@ -1,5 +1,5 @@
-# Data (too large for GitHub)
-data/
+# Data (too large for GitHub) - only root-level data/ folder
+/data/
 hapticgen-dataset/
 
 # Third-party repos
