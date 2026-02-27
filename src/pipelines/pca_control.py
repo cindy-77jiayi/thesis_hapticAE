@@ -73,7 +73,7 @@ def fit_pca_pipeline(
 # ---------------------------------------------------------------------------
 
 def control_to_latent(pipe: Pipeline, c: np.ndarray) -> np.ndarray:
-    """Convert an 8D control vector back to a full latent vector.
+    """Convert a PCA control vector back to a full latent vector.
 
     Args:
         pipe: Fitted sklearn Pipeline (StandardScaler → PCA).
