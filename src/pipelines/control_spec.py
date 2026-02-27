@@ -17,8 +17,16 @@ METRIC_LABELS = {
     "peak_amplitude": ("Peak amplitude", ""),
     "spectral_centroid_hz": ("Spectral centroid", "Hz"),
     "high_freq_ratio": ("HF energy ratio", ""),
+    "low_high_band_ratio": ("Low/High band ratio", ""),
     "envelope_decay_slope_dBps": ("Envelope decay slope", "dB/s"),
+    "late_early_energy_ratio": ("Late/Early energy ratio", ""),
+    "attack_time_s": ("Attack time", "s"),
     "onset_density_ps": ("Onset density", "/s"),
+    "ioi_entropy_bits": ("IOI entropy", "bits"),
+    "zero_crossing_rate_ps": ("Zero-crossing rate", "/s"),
+    "gap_ratio": ("Gap ratio", ""),
+    "short_term_variance": ("Short-term variance", ""),
+    "am_modulation_index": ("AM modulation index", ""),
     "crest_factor": ("Crest factor", ""),
 }
 
