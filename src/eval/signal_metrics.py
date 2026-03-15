@@ -270,24 +270,218 @@ def am_modulation_index(x: np.ndarray, sr: int = 8000) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Extended Spectral Features
+# ---------------------------------------------------------------------------
+
+def spectral_rolloff(x: np.ndarray, sr: int = 8000, pct: float = 0.85) -> float:
+    """Frequency below which pct% of spectral energy is concentrated (Hz)."""
+    X = np.abs(np.fft.rfft(x)) ** 2
+    freqs = np.fft.rfftfreq(len(x), d=1.0 / sr)
+    total = X.sum()
+    if total < 1e-12:
+        return 0.0
+    cumsum = np.cumsum(X)
+    idx = np.searchsorted(cumsum, pct * total)
+    return float(freqs[min(idx, len(freqs) - 1)])
+
+
+def spectral_slope(x: np.ndarray, sr: int = 8000) -> float:
+    """Linear slope of the log-magnitude spectrum (dB/Hz).
+
+    Negative = energy concentrated at low frequencies.
+    """
+    X = np.abs(np.fft.rfft(x))
+    freqs = np.fft.rfftfreq(len(x), d=1.0 / sr)
+    X_db = 20 * np.log10(X + 1e-10)
+    if len(freqs) < 2:
+        return 0.0
+    coeffs = np.polyfit(freqs, X_db, deg=1)
+    return float(coeffs[0])
+
+
+def spectral_flatness(x: np.ndarray) -> float:
+    """Ratio of geometric mean to arithmetic mean of power spectrum.
+
+    1.0 = white noise (flat). Near 0 = tonal/peaked.
+    """
+    X = np.abs(np.fft.rfft(x)) ** 2
+    X = X[X > 0]
+    if len(X) < 2:
+        return 0.0
+    log_mean = np.mean(np.log(X + 1e-20))
+    arith_mean = np.mean(X)
+    if arith_mean < 1e-20:
+        return 0.0
+    return float(np.exp(log_mean) / arith_mean)
+
+
+def band_energy(x: np.ndarray, sr: int = 8000,
+                lo_hz: float = 0, hi_hz: float = 4000) -> float:
+    """Fraction of total energy in the [lo_hz, hi_hz) band."""
+    X = np.abs(np.fft.rfft(x)) ** 2
+    freqs = np.fft.rfftfreq(len(x), d=1.0 / sr)
+    total = X.sum()
+    if total < 1e-12:
+        return 0.0
+    mask = (freqs >= lo_hz) & (freqs < hi_hz)
+    return float(X[mask].sum() / total)
+
+
+# ---------------------------------------------------------------------------
+# Extended Temporal / Envelope Features
+# ---------------------------------------------------------------------------
+
+def transient_energy_ratio(x: np.ndarray, sr: int = 8000,
+                           onset_ms: float = 20.0) -> float:
+    """Fraction of energy in the first onset_ms milliseconds."""
+    n_onset = int(sr * onset_ms / 1000)
+    n_onset = min(n_onset, len(x))
+    total = np.sum(x ** 2) + 1e-12
+    return float(np.sum(x[:n_onset] ** 2) / total)
+
+
+def effective_duration(x: np.ndarray, sr: int = 8000,
+                       threshold_pct: float = 0.1) -> float:
+    """Duration (seconds) where envelope exceeds threshold_pct of peak."""
+    env = np.abs(hilbert(x))
+    win = max(sr // 100, 8)
+    kernel = np.ones(win) / win
+    env_smooth = np.convolve(env, kernel, mode="same")
+    peak = env_smooth.max()
+    if peak < 1e-10:
+        return 0.0
+    above = env_smooth >= threshold_pct * peak
+    return float(np.sum(above) / sr)
+
+
+def envelope_area(x: np.ndarray, sr: int = 8000) -> float:
+    """Integral of the smoothed envelope (area under curve)."""
+    env = np.abs(hilbert(x))
+    win = max(sr // 50, 16)
+    kernel = np.ones(win) / win
+    env_smooth = np.convolve(env, kernel, mode="valid")
+    return float(np.trapz(env_smooth) / sr)
+
+
+def envelope_entropy(x: np.ndarray, sr: int = 8000, n_bins: int = 32) -> float:
+    """Shannon entropy of the envelope amplitude distribution (bits).
+
+    Higher = more uniform/complex envelope. Lower = peaked/simple.
+    """
+    env = np.abs(hilbert(x))
+    win = max(sr // 50, 16)
+    kernel = np.ones(win) / win
+    env_smooth = np.convolve(env, kernel, mode="valid")
+
+    if len(env_smooth) < 2 or env_smooth.max() < 1e-10:
+        return 0.0
+
+    hist, _ = np.histogram(env_smooth, bins=n_bins, density=True)
+    hist = hist[hist > 0]
+    hist_norm = hist / hist.sum()
+    return float(-np.sum(hist_norm * np.log2(hist_norm + 1e-12)))
+
+
+# ---------------------------------------------------------------------------
+# Extended Rhythmic Features
+# ---------------------------------------------------------------------------
+
+def onset_interval_cv(x: np.ndarray, sr: int = 8000,
+                      threshold_factor: float = 2.0) -> float:
+    """Coefficient of variation of inter-onset intervals.
+
+    0 = perfectly regular. Higher = more irregular timing.
+    """
+    frame_len = max(sr // 100, 32)
+    hop = frame_len // 2
+    n_frames = max(1, (len(x) - frame_len) // hop)
+
+    frame_energy = np.array([
+        np.sqrt(np.mean(x[i * hop: i * hop + frame_len] ** 2))
+        for i in range(n_frames)
+    ])
+
+    if len(frame_energy) < 3:
+        return 0.0
+    mean_e = np.mean(frame_energy)
+    if mean_e < 1e-10:
+        return 0.0
+
+    threshold = mean_e * threshold_factor
+    above = frame_energy > threshold
+    onset_idx = np.where(np.diff(above.astype(int)) == 1)[0]
+
+    if len(onset_idx) < 3:
+        return 0.0
+
+    iois = np.diff(onset_idx).astype(float)
+    mean_ioi = np.mean(iois)
+    if mean_ioi < 1e-10:
+        return 0.0
+    return float(np.std(iois) / mean_ioi)
+
+
+def modulation_spectrum_peak(x: np.ndarray, sr: int = 8000) -> float:
+    """Peak frequency (Hz) of the amplitude modulation spectrum.
+
+    Captures the dominant rate of amplitude fluctuation.
+    """
+    env = np.abs(hilbert(x))
+    win = max(sr // 50, 16)
+    kernel = np.ones(win) / win
+    env_smooth = np.convolve(env, kernel, mode="valid")
+
+    env_centered = env_smooth - np.mean(env_smooth)
+    if np.std(env_centered) < 1e-10:
+        return 0.0
+
+    mod_spec = np.abs(np.fft.rfft(env_centered))
+    mod_freqs = np.fft.rfftfreq(len(env_centered), d=1.0 / sr)
+
+    if len(mod_spec) < 2:
+        return 0.0
+    mod_spec[0] = 0
+    peak_idx = np.argmax(mod_spec)
+    return float(mod_freqs[peak_idx])
+
+
+# ---------------------------------------------------------------------------
 # Aggregate
 # ---------------------------------------------------------------------------
 
 def compute_all_metrics(x: np.ndarray, sr: int = 8000) -> dict[str, float]:
     """Compute all signal metrics for a waveform."""
     return {
+        # Intensity
         "rms_energy": rms_energy(x),
         "peak_amplitude": peak_amplitude(x),
+        # Spectral
         "spectral_centroid_hz": spectral_centroid(x, sr),
+        "spectral_rolloff_hz": spectral_rolloff(x, sr),
+        "spectral_slope": spectral_slope(x, sr),
+        "spectral_flatness": spectral_flatness(x),
         "high_freq_ratio": high_freq_ratio(x, sr),
         "low_high_band_ratio": low_high_band_ratio(x, sr),
+        "band_energy_0_150": band_energy(x, sr, 0, 150),
+        "band_energy_150_400": band_energy(x, sr, 150, 400),
+        "band_energy_400_800": band_energy(x, sr, 400, 800),
+        # Envelope / Temporal
         "envelope_decay_slope_dBps": envelope_decay_slope(x, sr),
         "late_early_energy_ratio": late_early_energy_ratio(x),
         "attack_time_s": attack_time(x, sr),
+        "transient_energy_ratio": transient_energy_ratio(x, sr),
+        "effective_duration_s": effective_duration(x, sr),
+        "envelope_area": envelope_area(x, sr),
+        "envelope_entropy_bits": envelope_entropy(x, sr),
+        # Rhythm
         "onset_density_ps": onset_density(x, sr),
         "ioi_entropy_bits": ioi_entropy(x, sr),
+        "onset_interval_cv": onset_interval_cv(x, sr),
+        "modulation_peak_hz": modulation_spectrum_peak(x, sr),
+        # Continuity
         "zero_crossing_rate_ps": zero_crossing_rate(x, sr),
         "gap_ratio": gap_ratio(x, sr),
+        # Texture
         "short_term_variance": short_term_variance(x, sr),
         "am_modulation_index": am_modulation_index(x, sr),
         "crest_factor": crest_factor(x),
