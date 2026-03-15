@@ -1,132 +1,129 @@
 # Haptic Control Dimensions (PC1–PC8)
 
 **Model:** vae_balanced (latent_dim=24, beta_max=0.003)  
-**Total explained variance:** 58.6%  
+**Total explained variance:** 58.9% (mean across 3 seeds: 60.6% ± 4.3%)  
 **Signal:** 4000 samples @ 8000 Hz (0.50s)
 
-> **Note on 58.6% coverage:** This is sufficient for a controllable subspace — the goal
-> is not lossless compression but controllable generation. The first 4 PCs capture
-> the primary perceptual axes (35.7%), and PC5–8 add finer temporal detail.
-> Statistical evidence below demonstrates monotonic, orthogonal control.
+> **Note on 58.9% coverage:** The goal is controllable generation, not lossless
+> compression. PC1–PC2 alone capture 29.5% and show strong monotonic control
+> (|ρ| > 0.8) over multiple signal metrics. PC3–PC4 add moderate control (|ρ| > 0.7).
+> PC5–PC8 provide fine-grained adjustment with limited individual semantics.
 
-## Control Summary
+## Validation Summary
 
-### Primary Controls (PC1–PC4): Strong, monotonic, independently validated
+| Evidence | Result | Interpretation |
+|----------|--------|----------------|
+| **Monotonicity** | PC1: 4 metrics |ρ|>0.7; PC2: 4 metrics |ρ|>0.8 | Strong data-driven labels |
+| **Orthogonality** | Mean selectivity 3.1× (all >1×) | Each PC primarily affects its own bound metrics |
+| **Effect size** | PC1-4 avg relative change > PC5-8 on key metrics | Primary/secondary split is justified |
+| **Cross-seed** | EVR stable ±1.6%; PC1/PC2 sign consistency 87% | Structure not an artifact of single seed |
 
-| Control | Var% | Range (P5–P95) | Label | Bound Metrics | Evidence |
-|---------|------|----------------|-------|---------------|----------|
-| PC1 | 23.4 | [−6.41, +1.80] | **Intensity** | RMS energy, peak amplitude | Spearman ρ, monotonic sweep |
-| PC2 | 6.6 | [−2.07, +1.77] | **Sustain** | Envelope decay slope, late/early energy ratio | Spearman ρ, monotonic sweep |
-| PC3 | 5.6 | [−1.90, +1.81] | **Warmth** | Spectral centroid (↓=warm), low/high band ratio | Spearman ρ, monotonic sweep |
-| PC4 | 5.1 | [−1.84, +1.83] | **Attack sharpness** | Attack time (↓=sharper), crest factor | Spearman ρ, monotonic sweep |
+## Control Specification
 
-### Secondary Controls (PC5–PC8): Finer temporal microstructure
+### Primary Controls: Strong monotonic, cross-seed stable
 
-These dimensions capture secondary temporal variations. Their semantic labels
-are weaker and more context-dependent than PC1–4. They are grouped under the
-umbrella of **temporal microstructure / patterning**.
+| Control | Var% | Range (P5–P95) | Label | Bound Metrics (Spearman ρ) | Seed Stability |
+|---------|------|----------------|-------|---------------------------|----------------|
+| PC1 | 22.7 | [−1.60, +6.14] | **Intensity** | AM mod ↓(−0.85), decay slope ↑(+0.78), crest ↓(−0.78), RMS ↑(+0.74) | 87% |
+| PC2 | 6.8 | [−2.16, +2.00] | **Brightness** | spec centroid ↑(+0.97), short-term var ↓(−0.97), AM mod ↓(−0.91), decay slope ↑(+0.84) | 87% |
 
-| Control | Var% | Range (P5–P95) | Label | Notes |
-|---------|------|----------------|-------|-------|
-| PC5 | 4.9 | [−1.76, +1.99] | **Temporal patterning A** | Onset density, rhythm complexity |
-| PC6 | 4.5 | [−1.56, +1.75] | **Temporal patterning B** | Event density at different scale |
-| PC7 | 4.4 | [−1.66, +1.79] | **Temporal patterning C** | Continuity/fragmentation |
-| PC8 | 4.1 | [−1.39, +1.84] | **Temporal patterning D** | Fine texture variation |
+### Moderate Controls: Fewer bound metrics, partially stable
 
-## Validation Evidence
+| Control | Var% | Range (P5–P95) | Label | Bound Metrics (Spearman ρ) | Seed Stability |
+|---------|------|----------------|-------|---------------------------|----------------|
+| PC3 | 5.6 | [−1.84, +1.99] | **Sustain** | decay slope ↑(+0.76), spec centroid ↑(+0.67) | 47% |
+| PC4 | 5.3 | [−1.80, +1.94] | **Rhythmic variation** | IOI entropy ↑(+0.75), short-term var ↑(+0.68) | 67% |
 
-### 1. Monotonicity (Spearman ρ)
+### Secondary Controls: Temporal microstructure
 
-Each PC's bound metrics should show |ρ| > 0.8 with p < 0.05 along the sweep.
-See `outputs/validation/monotonicity_heatmap.png` for full matrix.
+These dimensions capture finer temporal variations. Their individual semantic
+labels are weaker (no non-peak metric with |ρ| > 0.7 except PC7 AM mod and
+PC8 attack time) and their cross-seed direction consistency ranges from 47% to
+93%. They are best characterized collectively as **temporal microstructure**.
 
-*To be populated after running `scripts/validate_controls.py`*
+| Control | Var% | Range (P5–P95) | Notable Metric | Seed Stability |
+|---------|------|----------------|----------------|----------------|
+| PC5 | 5.0 | [−2.05, +1.90] | — | 47% |
+| PC6 | 4.7 | [−1.94, +1.81] | decay slope ↑(+0.56) | 93% |
+| PC7 | 4.5 | [−1.68, +1.69] | AM mod ↑(+0.86) | 60% |
+| PC8 | 4.3 | [−1.69, +1.69] | attack time ↓(−0.73) | 93% |
 
-### 2. Orthogonality (Selectivity)
+## Detailed Evidence
 
-Each PC should primarily affect its own bound metrics (on-target |ρ| >> off-target |ρ|).
-Selectivity > 2× indicates good orthogonality.
-See `outputs/validation/selectivity.png`.
+### PC1 — Intensity (22.7% variance)
 
-*To be populated after running `scripts/validate_controls.py`*
+The dominant control axis. As PC1 increases: overall energy rises (RMS ↑),
+signal becomes more sustained and uniform (AM mod ↓, crest factor ↓),
+with flatter envelope (decay slope ↑).
 
-### 3. Effect Size (PC1–4 vs PC5–8)
+Asymmetric range [−1.60, +6.14] reflects the data distribution: most signals
+are low-energy, with a tail of high-energy samples.
 
-Primary PCs should produce larger metric changes than secondary PCs.
+| Metric | Spearman ρ | p-value | Direction |
+|--------|-----------|---------|-----------|
+| AM modulation index | −0.853 | <0.01 | ↓ (less modulation) |
+| Envelope decay slope | +0.777 | <0.05 | ↑ (more sustained) |
+| Crest factor | −0.775 | <0.05 | ↓ (less impulsive) |
+| RMS energy | +0.743 | <0.05 | ↑ (more energy) |
 
-*To be populated after running `scripts/validate_controls.py`*
+### PC2 — Brightness (6.8% variance)
 
-### 4. Cross-Seed Stability
+Controls spectral content and temporal smoothness. As PC2 increases:
+signal shifts toward higher frequencies (centroid ↑) with less temporal
+variation (short-term var ↓, AM mod ↓) and more sustain (decay slope ↑).
 
-Trained with seeds {42, 123, 456}. Key stability metrics:
-- Explained variance ratios should be within ±2% across seeds
-- Spearman ρ sign should be consistent for bound metrics
+| Metric | Spearman ρ | p-value | Direction |
+|--------|-----------|---------|-----------|
+| Spectral centroid | +0.969 | <0.01 | ↑ (brighter) |
+| Short-term variance | −0.971 | <0.01 | ↓ (smoother) |
+| AM modulation index | −0.910 | <0.01 | ↓ (less modulation) |
+| Envelope decay slope | +0.836 | <0.01 | ↑ (more sustained) |
 
-*To be populated after running `scripts/cross_seed_stability.py`*
+### PC3 — Sustain (5.6% variance)
 
-## Detailed Metric Profiles
+Weaker semantic dimension. Primarily associated with envelope sustain
+characteristics. Lower cross-seed consistency (47%) suggests this dimension
+may swap with adjacent PCs under different training conditions.
 
-### PC1 — Intensity (23.4% variance)
+| Metric | Spearman ρ | p-value | Direction |
+|--------|-----------|---------|-----------|
+| Envelope decay slope | +0.755 | <0.05 | ↑ (more sustained) |
+| Spectral centroid | +0.665 | <0.05 | ↑ (brighter) |
 
-The dominant axis. Controls overall signal energy and transient character.  
-Asymmetric range [−6.41, +1.80] indicates most signals cluster near low-energy end.
+### PC4 — Rhythmic variation (5.3% variance)
 
-**Bound metrics:** `rms_energy`, `peak_amplitude`
+Associated with temporal rhythm complexity. Higher values produce more
+irregular inter-onset intervals and greater short-term energy variation.
 
-| Metric | Direction | Rel. Change | Range |
-|--------|-----------|-------------|-------|
-| Onset density | ↑ | 3.93× | [0, 10] /s |
-| HF energy ratio | ↑ | 3.05× | [0.000, 0.023] |
-| RMS energy | ↓ | 1.92× | [0.084, 1.621] |
+| Metric | Spearman ρ | p-value | Direction |
+|--------|-----------|---------|-----------|
+| IOI entropy | +0.746 | <0.05 | ↑ (more complex rhythm) |
+| Short-term variance | +0.677 | <0.05 | ↑ (more variation) |
+| Envelope decay slope | +0.643 | <0.05 | ↑ (more sustained) |
 
-### PC2 — Sustain (6.6% variance)
+### PC5–PC8 — Temporal microstructure (18.5% combined)
 
-Controls the temporal sustain/decay profile.
+These secondary dimensions capture fine-grained temporal patterning that
+resists stable per-axis labeling. Their effects are real but small, and
+their semantic interpretation is context-dependent. Notable individual
+bindings:
 
-**Bound metrics:** `envelope_decay_slope_dBps`, `late_early_energy_ratio`
+- **PC7**: AM modulation index (ρ=+0.86) — controls amplitude modulation depth
+- **PC8**: Attack time (ρ=−0.73) — sharper attacks at higher values
 
-| Metric | Direction | Rel. Change | Range |
-|--------|-----------|-------------|-------|
-| Envelope decay slope | ↑ | 4.61× | [−11.16, 1.99] dB/s |
-| HF energy ratio | ↑ | 1.49× | [0.004, 0.024] |
-| Onset density | ↓ | 1.29× | [2, 6] /s |
+## Cross-Seed Stability
 
-### PC3 — Warmth (5.6% variance)
+Trained with 3 random seeds (42, 123, 456). Results confirm structural stability:
 
-Trades off brightness for fullness.
+| Metric | Seed 42 | Seed 123 | Seed 456 | Mean ± Std |
+|--------|---------|----------|----------|------------|
+| PC1 variance | 22.7% | 26.3% | 26.0% | 25.0% ± 1.6% |
+| PC2 variance | 6.8% | 6.0% | 9.4% | 7.4% ± 1.4% |
+| PC3–PC8 avg | 4.9% | 4.5% | 4.3% | 4.5% ± 0.2% |
+| Total (8 PCs) | 58.9% | 60.1% | 62.7% | 60.6% ± 1.6% |
 
-**Bound metrics:** `spectral_centroid_hz`, `low_high_band_ratio`
-
-| Metric | Direction | Rel. Change | Range |
-|--------|-----------|-------------|-------|
-| Envelope decay slope | ↑ | 4.05× | [−4.63, 3.14] dB/s |
-| HF energy ratio | ↓ | 1.23× | [0.003, 0.017] |
-| RMS energy | ↑ | 1.12× | [0.100, 0.263] |
-
-### PC4 — Attack sharpness (5.1% variance)
-
-Controls the onset attack profile.
-
-**Bound metrics:** `attack_time_s`, `crest_factor`
-
-| Metric | Direction | Rel. Change | Range |
-|--------|-----------|-------------|-------|
-| Envelope decay slope | ↓ | 1.92× | [1.13, 14.90] dB/s |
-| Onset density | ↑ | 1.10× | [2, 6] /s |
-| HF energy ratio | ↑ | 1.04× | [0.005, 0.017] |
-
-### PC5–PC8 — Temporal microstructure (16.3% combined variance)
-
-These secondary dimensions capture finer temporal variations that are harder
-to assign single semantic labels to. They primarily influence:
-- Onset density and inter-onset interval entropy (rhythm)
-- Gap ratio and zero-crossing rate (continuity)
-- Short-term variance and AM modulation index (texture)
-
-Their effects are real but smaller in magnitude than PC1–4 (see effect size
-analysis), and their semantic interpretation is more context-dependent.
-
----
+PC1 consistently captures 22–26% of variance across all seeds, confirming
+it as the dominant intensity axis regardless of initialization.
 
 ## API Usage
 
@@ -134,11 +131,19 @@ analysis), and their semantic interpretation is more context-dependent.
 # Default: all controls at 0 → neutral/average signal
 signal = decode_controls([0, 0, 0, 0, 0, 0, 0, 0])
 
-# High intensity, sustained, warm
-signal = decode_controls([-4.0, 1.5, 1.5, 0, 0, 0, 0, 0])
+# High intensity, bright, sustained
+signal = decode_controls([4.0, 1.5, 1.5, 0, 0, 0, 0, 0])
 
-# Low intensity, percussive, bright, sharp attacks
-signal = decode_controls([1.0, -1.5, -1.5, 1.5, 0, 0, 0, 0])
+# Low intensity, dark, percussive, complex rhythm
+signal = decode_controls([-1.0, -1.5, -1.5, 1.5, 0, 0, 0, 0])
 ```
 
 Each control should stay within its P5–P95 range for realistic output.
+
+## Methodological Note
+
+The `peak_amplitude` metric shows |ρ| ≈ 1.0 for nearly all PCs, which is
+a measurement artifact: the decoder produces monotonically changing peak
+values along any sweep direction. This metric was excluded from semantic
+binding analysis. All reported bindings use metrics with genuine
+discriminative power.
