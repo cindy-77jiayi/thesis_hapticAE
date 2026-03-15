@@ -95,8 +95,10 @@ def main():
             T=T,
             latent_dim=model_cfg["latent_dim"],
             channels=tuple(model_cfg["channels"]),
+            first_kernel=model_cfg.get("first_kernel", 25),
             kernel_size=model_cfg.get("kernel_size", 9),
-            use_batchnorm=model_cfg.get("norm", "batchnorm") == "batchnorm",
+            activation=model_cfg.get("activation", "leaky_relu"),
+            norm=model_cfg.get("norm", "group"),
         )
 
     total_params = sum(p.numel() for p in model.parameters())

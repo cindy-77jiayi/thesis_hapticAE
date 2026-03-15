@@ -1,38 +1,53 @@
-"""Conv1D Autoencoder (no variational component) for haptic signals."""
+"""Conv1D Autoencoder (deterministic) for haptic signals.
+
+Same architecture as ConvVAE but without reparameterization / KL divergence.
+Used as reconstruction quality upper bound.
+"""
 
 import torch
 import torch.nn as nn
 
 
-class ConvAE(nn.Module):
-    """1D Convolutional Autoencoder.
+def _group_norm(channels: int, num_groups: int = 8) -> nn.GroupNorm:
+    return nn.GroupNorm(num_groups=num_groups, num_channels=channels)
 
-    Similar architecture to ConvVAE but without the reparameterization trick.
-    The bottleneck is a deterministic latent vector.
+
+class ConvAE(nn.Module):
+    """1D Convolutional Autoencoder with configurable depth and width.
+
+    Architecture mirrors ConvVAE for fair comparison —
+    the only difference is the absence of the variational bottleneck.
     """
 
     def __init__(
         self,
         T: int = 4000,
         latent_dim: int = 64,
-        channels: tuple[int, ...] = (16, 32, 64),
+        channels: tuple[int, ...] = (32, 64, 128, 128),
+        first_kernel: int = 25,
         kernel_size: int = 9,
+        activation: str = "leaky_relu",
+        norm: str = "group",
+        # kept for compatibility with old configs
         use_batchnorm: bool = True,
     ):
         super().__init__()
         self.T = T
         self.latent_dim = latent_dim
 
-        norm_fn = nn.BatchNorm1d if use_batchnorm else lambda c: nn.GroupNorm(8, c)
+        act_fn = nn.LeakyReLU(0.2) if activation == "leaky_relu" else nn.ReLU()
+        norm_fn = _group_norm if norm == "group" else nn.BatchNorm1d
 
         # --- Encoder ---
         enc_layers = []
         in_ch = 1
-        for out_ch in channels:
+        for i, out_ch in enumerate(channels):
+            k = first_kernel if i == 0 else kernel_size
+            p = k // 2
             enc_layers.extend([
-                nn.Conv1d(in_ch, out_ch, kernel_size=kernel_size, stride=2, padding=kernel_size // 2),
+                nn.Conv1d(in_ch, out_ch, kernel_size=k, stride=2, padding=p),
                 norm_fn(out_ch),
-                nn.ReLU(),
+                type(act_fn)(act_fn.negative_slope if hasattr(act_fn, 'negative_slope') else True),
             ])
             in_ch = out_ch
         self.encoder = nn.Sequential(*enc_layers)
@@ -46,17 +61,17 @@ class ConvAE(nn.Module):
         self.fc_enc = nn.Linear(self.enc_feat, latent_dim)
         self.fc_dec = nn.Linear(latent_dim, self.enc_feat)
 
-        # --- Decoder ---
+        # --- Decoder (Upsample + Conv) ---
         dec_layers = []
-        rev = list(reversed(channels))
-        for i in range(len(rev)):
-            in_ch = rev[i]
-            out_ch = rev[i + 1] if i + 1 < len(rev) else 1
-            dec_layers.extend([
-                nn.ConvTranspose1d(in_ch, out_ch, kernel_size=kernel_size, stride=2, padding=kernel_size // 2, output_padding=1),
-            ])
+        rev_channels = list(reversed(channels))
+        for i in range(len(rev_channels)):
+            in_ch = rev_channels[i]
+            out_ch = rev_channels[i + 1] if i + 1 < len(rev_channels) else 1
+            dec_layers.append(nn.Upsample(scale_factor=2, mode="linear", align_corners=False))
+            dec_layers.append(nn.Conv1d(in_ch, out_ch, kernel_size=kernel_size, padding=kernel_size // 2))
             if out_ch > 1:
-                dec_layers.extend([norm_fn(out_ch), nn.ReLU()])
+                dec_layers.append(norm_fn(out_ch))
+                dec_layers.append(type(act_fn)(act_fn.negative_slope if hasattr(act_fn, 'negative_slope') else True))
         self.decoder = nn.Sequential(*dec_layers)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
