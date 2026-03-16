@@ -41,6 +41,102 @@ METRIC_LABELS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Composite PC labels (data-driven, based on HapticGen 793-sample run)
+# ---------------------------------------------------------------------------
+
+DEFAULT_PC_LABELS: dict[int, dict] = {
+    0: {
+        "label": "Energy\u2013spectral warmth composite",
+        "description": "Global signal energy coupled with low-frequency dominance "
+                       "and increased temporal variation",
+        "adjectives": ["quiet & bright", "loud & warm"],
+        "key_metrics": {
+            "short_term_variance": "increases",
+            "low_high_band_ratio": "increases",
+            "high_freq_ratio": "decreases",
+        },
+    },
+    1: {
+        "label": "Temporal irregularity & onset softness",
+        "description": "Rhythm becomes more irregular (higher IOI entropy and "
+                       "onset CV) while attack onset softens",
+        "adjectives": ["regular & sharp", "irregular & soft"],
+        "key_metrics": {
+            "ioi_entropy_bits": "increases",
+            "onset_interval_cv": "increases",
+            "attack_time_s": "increases",
+        },
+    },
+    2: {
+        "label": "Modulation rate\u2013spectral balance",
+        "description": "Dominant amplitude-modulation frequency rises while "
+                       "short-term energy variation and low-frequency dominance decrease",
+        "adjectives": ["slow flutter & warm", "fast flutter & bright"],
+        "key_metrics": {
+            "modulation_peak_hz": "increases",
+            "short_term_variance": "decreases",
+            "low_high_band_ratio": "decreases",
+        },
+    },
+    3: {
+        "label": "Onset-weighted decay",
+        "description": "Energy concentrates at signal onset with higher transient "
+                       "ratio and a shallower overall decay slope",
+        "adjectives": ["sustained & even", "punchy & front-loaded"],
+        "key_metrics": {
+            "envelope_decay_slope_dBps": "increases",
+            "transient_energy_ratio": "increases",
+            "low_high_band_ratio": "decreases",
+        },
+    },
+    4: {
+        "label": "Continuity\u2013rhythm composite",
+        "description": "Signal gaps vanish while rhythmic structure becomes more "
+                       "irregular, yielding a continuous but unpredictable texture",
+        "adjectives": ["gapped & periodic", "continuous & irregular"],
+        "key_metrics": {
+            "gap_ratio": "decreases",
+            "onset_interval_cv": "increases",
+            "ioi_entropy_bits": "increases",
+        },
+    },
+    5: {
+        "label": "Soft attack with rhythmic regularity",
+        "description": "Attack time lengthens while onset timing becomes more "
+                       "periodic and predictable",
+        "adjectives": ["sharp & irregular", "soft & metronomic"],
+        "key_metrics": {
+            "attack_time_s": "increases",
+            "onset_interval_cv": "decreases",
+            "ioi_entropy_bits": "decreases",
+        },
+    },
+    6: {
+        "label": "Sustained energy & late emphasis",
+        "description": "Decay slope flattens and energy shifts toward the second "
+                       "half of the signal, producing a sustained or swelling feel",
+        "adjectives": ["front-heavy & decaying", "sustained & swelling"],
+        "key_metrics": {
+            "envelope_decay_slope_dBps": "increases",
+            "late_early_energy_ratio": "increases",
+            "low_high_band_ratio": "decreases",
+        },
+    },
+    7: {
+        "label": "Soft attack with temporal jitter",
+        "description": "Attack onset softens while inter-onset intervals become "
+                       "more variable, creating a sluggish yet unpredictable feel",
+        "adjectives": ["sharp & steady", "soft & jittery"],
+        "key_metrics": {
+            "attack_time_s": "increases",
+            "onset_interval_cv": "increases",
+            "ioi_entropy_bits": "decreases",
+        },
+    },
+}
+
+
 def compute_control_ranges(
     Z_pca: np.ndarray,
     percentiles: tuple[float, float] = (5.0, 95.0),
@@ -141,7 +237,7 @@ def build_controls_spec(
         )
         dominant = identify_dominant_metrics(sweep)
 
-        controls.append({
+        ctrl_entry = {
             "axis": i,
             "name": f"PC{i + 1}",
             "explained_variance_pct": round(float(explained_variance_ratio[i]) * 100, 2),
@@ -154,7 +250,14 @@ def build_controls_spec(
                 "data_max": r["max"],
             },
             "dominant_metrics": dominant,
-        })
+        }
+        if i in DEFAULT_PC_LABELS:
+            lbl = DEFAULT_PC_LABELS[i]
+            ctrl_entry["composite_label"] = lbl["label"]
+            ctrl_entry["composite_description"] = lbl["description"]
+            ctrl_entry["adjectives"] = lbl.get("adjectives", [])
+            ctrl_entry["key_metrics"] = lbl.get("key_metrics", {})
+        controls.append(ctrl_entry)
 
     total_var = sum(c["explained_variance_pct"] for c in controls)
     spec = {
@@ -177,42 +280,39 @@ def save_controls_spec(spec: dict, path: str):
 
 
 def build_controls_table_md(spec: dict, pc_labels: dict[int, dict] | None = None) -> str:
-    """Generate controls_table.md content.
+    """Generate controls_table.md content with composite labels.
 
     Args:
-        spec: The controls_spec dict.
-        pc_labels: Optional dict mapping axis index to
+        spec: The controls_spec dict (may contain composite_label fields).
+        pc_labels: Optional override dict mapping axis index to
             {"label": str, "description": str, "adjectives": [str, ...]}.
-            If None, labels are auto-generated from dominant metrics.
+            If None, uses composite labels embedded in the spec, falling back
+            to DEFAULT_PC_LABELS, then to the top dominant metric.
     """
+    n = spec["n_controls"]
     lines = [
-        "# Haptic Control Dimensions (PC1–PC8)",
+        f"# Haptic Control Dimensions (PC1\u2013PC{n})",
         "",
         f"Total explained variance: **{spec['total_explained_variance_pct']:.1f}%**  ",
-        f"Signal: {spec['signal_length']} samples @ {spec['sr']} Hz ({spec['signal_length']/spec['sr']:.2f}s)",
+        f"Signal: {spec['signal_length']} samples @ {spec['sr']} Hz "
+        f"({spec['signal_length']/spec['sr']:.2f}s)",
         "",
         "## Control Summary",
         "",
-        "| Control | Var% | Range (P5–P95) | Primary Effect | Direction |",
-        "|---------|------|----------------|---------------|-----------|",
+        "| Control | Var% | Range (P5\u2013P95) | Composite Label | Low \u2192 High |",
+        "|---------|------|----------------|----------------|------------|",
     ]
 
     for ctrl in spec["controls"]:
         ax = ctrl["axis"]
         r = ctrl["range"]
-        dom = ctrl["dominant_metrics"][0] if ctrl["dominant_metrics"] else {}
-        metric_name = METRIC_LABELS.get(dom.get("metric", ""), (dom.get("metric", "?"), ""))[0]
-        direction = dom.get("direction", "?")
 
-        if pc_labels and ax in pc_labels:
-            label = pc_labels[ax]["label"]
-        else:
-            label = metric_name
+        label, adj_lo, adj_hi = _resolve_label(ctrl, ax, pc_labels)
 
         lines.append(
             f"| {ctrl['name']} | {ctrl['explained_variance_pct']:.1f} | "
             f"[{r['low']:+.2f}, {r['high']:+.2f}] | "
-            f"{label} | {direction} |"
+            f"{label} | {adj_lo} \u2192 {adj_hi} |"
         )
 
     lines.append("")
@@ -221,18 +321,25 @@ def build_controls_table_md(spec: dict, pc_labels: dict[int, dict] | None = None
 
     for ctrl in spec["controls"]:
         ax = ctrl["axis"]
-        lines.append(f"### {ctrl['name']} — {ctrl['explained_variance_pct']:.1f}% variance")
+        label, adj_lo, adj_hi = _resolve_label(ctrl, ax, pc_labels)
+        desc = _resolve_description(ctrl, ax, pc_labels)
 
-        if pc_labels and ax in pc_labels:
-            lbl = pc_labels[ax]
-            lines.append(f"**Label:** {lbl['label']}  ")
-            lines.append(f"**Description:** {lbl['description']}  ")
-            if lbl.get("adjectives"):
-                lines.append(f"**Subjective:** low → {lbl['adjectives'][0]}, high → {lbl['adjectives'][1]}")
+        lines.append(
+            f"### {ctrl['name']} \u2014 {label} "
+            f"({ctrl['explained_variance_pct']:.1f}% variance)"
+        )
         lines.append("")
-
-        lines.append(f"- Range (P5–P95): [{ctrl['range']['low']:+.2f}, {ctrl['range']['high']:+.2f}]")
-        lines.append(f"- Data mean: {ctrl['statistics']['mean']:.4f}, std: {ctrl['statistics']['std']:.4f}")
+        lines.append(f"**Description:** {desc}  ")
+        lines.append(f"**Subjective:** low \u2192 _{adj_lo}_, high \u2192 _{adj_hi}_")
+        lines.append("")
+        lines.append(
+            f"- Range (P5\u2013P95): [{ctrl['range']['low']:+.2f}, "
+            f"{ctrl['range']['high']:+.2f}]"
+        )
+        lines.append(
+            f"- Data mean: {ctrl['statistics']['mean']:.4f}, "
+            f"std: {ctrl['statistics']['std']:.4f}"
+        )
         lines.append("")
 
         lines.append("| Metric | Direction | Relative Change | Range |")
@@ -248,6 +355,48 @@ def build_controls_table_md(spec: dict, pc_labels: dict[int, dict] | None = None
         lines.append("")
 
     return "\n".join(lines)
+
+
+def _resolve_label(
+    ctrl: dict, ax: int, pc_labels: dict[int, dict] | None
+) -> tuple[str, str, str]:
+    """Return (label, adj_low, adj_high) from the best available source."""
+    if pc_labels and ax in pc_labels:
+        lbl = pc_labels[ax]
+    elif "composite_label" in ctrl:
+        lbl = {
+            "label": ctrl["composite_label"],
+            "adjectives": ctrl.get("adjectives", []),
+        }
+    elif ax in DEFAULT_PC_LABELS:
+        lbl = DEFAULT_PC_LABELS[ax]
+    else:
+        dom = ctrl["dominant_metrics"][0] if ctrl["dominant_metrics"] else {}
+        metric_name = METRIC_LABELS.get(
+            dom.get("metric", ""), (dom.get("metric", "?"), "")
+        )[0]
+        return metric_name, "low", "high"
+
+    adjs = lbl.get("adjectives", ["low", "high"])
+    return lbl["label"], adjs[0] if len(adjs) > 0 else "low", adjs[1] if len(adjs) > 1 else "high"
+
+
+def _resolve_description(
+    ctrl: dict, ax: int, pc_labels: dict[int, dict] | None
+) -> str:
+    """Return the best available description string."""
+    if pc_labels and ax in pc_labels:
+        return pc_labels[ax].get("description", "")
+    if "composite_description" in ctrl:
+        return ctrl["composite_description"]
+    if ax in DEFAULT_PC_LABELS:
+        return DEFAULT_PC_LABELS[ax].get("description", "")
+    dom = ctrl["dominant_metrics"][0] if ctrl["dominant_metrics"] else {}
+    metric_name = METRIC_LABELS.get(
+        dom.get("metric", ""), (dom.get("metric", "?"), "")
+    )[0]
+    direction = dom.get("direction", "?")
+    return f"Primary effect: {metric_name} {direction}"
 
 
 def plot_sweep_gallery(
