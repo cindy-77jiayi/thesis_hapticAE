@@ -20,7 +20,6 @@ Usage:
 import argparse
 import json
 import os
-import pickle
 import sys
 from pathlib import Path
 
@@ -33,10 +32,11 @@ from scipy.stats import spearmanr
 from src.utils.config import load_config
 from src.utils.seed import set_seed
 from src.data.loaders import build_dataloaders, build_model, load_checkpoint
-from src.pipelines.latent_extraction import extract_latent_vectors
+from src.pipelines.latent_extraction import load_or_fit_pca, extract_latent_vectors
 from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis
 from src.pipelines.control_spec import compute_control_ranges, METRIC_LABELS
 from src.eval.pc_validation import (
+    compute_monotonicity_matrix,
     compute_cross_influence,
     compute_effect_sizes,
     print_cross_influence_report,
@@ -50,27 +50,19 @@ from src.eval.pc_validation import (
 # ===================================================================
 
 def compute_extended_bindings(sweep_results, sig_threshold=0.05):
-    """Compute Spearman ρ for each (PC, metric) pair and rank bindings."""
-    metric_names = list(sweep_results[0]["metrics"][0].keys())
-    n_pcs = len(sweep_results)
-    n_metrics = len(metric_names)
+    """Compute Spearman ρ for each (PC, metric) pair and rank bindings.
 
-    rho = np.zeros((n_pcs, n_metrics))
-    pval = np.zeros((n_pcs, n_metrics))
-
-    for pi, sweep in enumerate(sweep_results):
-        values = np.array(sweep["values"])
-        for mi, mn in enumerate(metric_names):
-            metric_vals = np.array([m[mn] for m in sweep["metrics"]])
-            if np.std(metric_vals) < 1e-12:
-                rho[pi, mi], pval[pi, mi] = 0.0, 1.0
-            else:
-                r, p = spearmanr(values, metric_vals)
-                rho[pi, mi], pval[pi, mi] = r, p
+    Delegates the core ρ/p computation to compute_monotonicity_matrix,
+    then adds ranked_bindings with significance flags.
+    """
+    mono = compute_monotonicity_matrix(sweep_results)
+    rho = mono["rho"]
+    pval = mono["pvalue"]
+    metric_names = mono["metric_names"]
+    pc_names = mono["pc_names"]
 
     bindings = {}
-    for pi in range(n_pcs):
-        pc = f"PC{pi + 1}"
+    for pi, pc in enumerate(pc_names):
         ranked = []
         for mi, mn in enumerate(metric_names):
             ranked.append({
@@ -83,10 +75,7 @@ def compute_extended_bindings(sweep_results, sig_threshold=0.05):
         bindings[pc] = ranked
 
     return {
-        "metric_names": metric_names,
-        "pc_names": [f"PC{i+1}" for i in range(n_pcs)],
-        "rho": rho,
-        "pvalue": pval,
+        **mono,
         "ranked_bindings": bindings,
     }
 
@@ -442,16 +431,12 @@ def main():
     print(f"✅ Loaded: {args.checkpoint}")
 
     # --- Load PCA ---
-    if args.pca_dir and os.path.exists(os.path.join(args.pca_dir, "pca_pipe.pkl")):
-        with open(os.path.join(args.pca_dir, "pca_pipe.pkl"), "rb") as f:
-            pipe = pickle.load(f)
-        Z_pca = np.load(os.path.join(args.pca_dir, "Z_pca.npy"))
-        print(f"📦 Loaded PCA from {args.pca_dir}")
-    else:
-        data = build_dataloaders(config, args.data_dir, batch_size=64, full_dataset=True)
-        Z = extract_latent_vectors(model, data["all_loader"], device)
-        pipe, Z_pca = fit_pca_pipeline(Z, n_components=args.n_components,
-                                       save_dir=args.output_dir)
+    pipe, Z_pca = load_or_fit_pca(
+        model, config, args.data_dir, device,
+        pca_dir=args.pca_dir,
+        n_components=args.n_components,
+        save_dir=args.output_dir,
+    )
 
     evr = pipe.named_steps["pca"].explained_variance_ratio_
     ranges = compute_control_ranges(Z_pca)

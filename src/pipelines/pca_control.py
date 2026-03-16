@@ -186,7 +186,6 @@ def plot_sweep(sweep_result: dict, sr: int = 8000, save_path: str | None = None)
     plt.tight_layout()
 
     if save_path:
-        from pathlib import Path
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
 

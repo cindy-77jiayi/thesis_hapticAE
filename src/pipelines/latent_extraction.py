@@ -1,5 +1,8 @@
 """Step 1: Extract latent vectors (mu) from the full dataset using a trained VAE encoder."""
 
+import os
+import pickle
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -38,3 +41,49 @@ def extract_latent_vectors(
           f"min={Z.min():.4f}, max={Z.max():.4f}")
 
     return Z
+
+
+def load_or_fit_pca(
+    model,
+    config: dict,
+    data_dir: str,
+    device: torch.device,
+    pca_dir: str | None = None,
+    n_components: int = 8,
+    save_dir: str | None = None,
+):
+    """Load an existing PCA pipeline or extract latents and fit a new one.
+
+    Args:
+        model: Trained VAE (already on device, eval mode).
+        config: Parsed YAML config dict.
+        data_dir: Root of hapticgen-dataset.
+        device: torch device.
+        pca_dir: If provided and contains pca_pipe.pkl, load from there.
+        n_components: Number of PCA components.
+        save_dir: Where to save newly fitted PCA artifacts.
+
+    Returns:
+        (pipe, Z_pca) — sklearn Pipeline and projected scores.
+    """
+    from src.pipelines.pca_control import fit_pca_pipeline
+
+    if pca_dir and os.path.exists(os.path.join(pca_dir, "pca_pipe.pkl")):
+        print(f"📦 Loading existing PCA from {pca_dir}")
+        with open(os.path.join(pca_dir, "pca_pipe.pkl"), "rb") as f:
+            pipe = pickle.load(f)
+        Z_pca = np.load(os.path.join(pca_dir, "Z_pca.npy"))
+        return pipe, Z_pca
+
+    from src.data.loaders import build_dataloaders
+
+    data = build_dataloaders(config, data_dir, batch_size=64, full_dataset=True)
+    print(f"   Dataset size: {len(data['wav_files'])}")
+
+    Z = extract_latent_vectors(model, data["all_loader"], device)
+    if save_dir:
+        os.makedirs(save_dir, exist_ok=True)
+        np.save(os.path.join(save_dir, "Z.npy"), Z)
+
+    pipe, Z_pca = fit_pca_pipeline(Z, n_components=n_components, save_dir=save_dir)
+    return pipe, Z_pca

@@ -19,6 +19,29 @@ from scipy.signal import hilbert
 
 
 # ---------------------------------------------------------------------------
+# Internal helpers (shared computation patterns)
+# ---------------------------------------------------------------------------
+
+def _smoothed_envelope(x: np.ndarray, sr: int, win_div: int = 50, mode: str = "valid") -> np.ndarray:
+    """Compute Hilbert envelope smoothed with a moving-average kernel."""
+    env = np.abs(hilbert(x))
+    win = max(sr // win_div, 8 if win_div >= 100 else 16)
+    kernel = np.ones(win) / win
+    return np.convolve(env, kernel, mode=mode)
+
+
+def _frame_rms(x: np.ndarray, sr: int, frame_div: int = 100) -> np.ndarray:
+    """Compute per-frame RMS energy with 50% overlap."""
+    frame_len = max(sr // frame_div, 32)
+    hop = frame_len // 2
+    n_frames = max(1, (len(x) - frame_len) // hop)
+    return np.array([
+        np.sqrt(np.mean(x[i * hop: i * hop + frame_len] ** 2))
+        for i in range(n_frames)
+    ])
+
+
+# ---------------------------------------------------------------------------
 # Intensity
 # ---------------------------------------------------------------------------
 
@@ -41,12 +64,9 @@ def envelope_decay_slope(x: np.ndarray, sr: int = 8000) -> float:
 
     More negative = faster decay. Near zero = sustained.
     """
-    env = np.abs(hilbert(x))
-    win = max(sr // 50, 16)
-    if len(env) < win:
+    env_smooth = _smoothed_envelope(x, sr, win_div=50, mode="valid")
+    if len(env_smooth) < 2:
         return 0.0
-    kernel = np.ones(win) / win
-    env_smooth = np.convolve(env, kernel, mode="valid")
 
     env_db = 20 * np.log10(env_smooth + 1e-10)
     t = np.arange(len(env_db)) / sr
@@ -110,10 +130,7 @@ def attack_time(x: np.ndarray, sr: int = 8000) -> float:
 
     Shorter = sharper attack. Returns signal duration if no clear attack.
     """
-    env = np.abs(hilbert(x))
-    win = max(sr // 100, 8)
-    kernel = np.ones(win) / win
-    env_smooth = np.convolve(env, kernel, mode="same")
+    env_smooth = _smoothed_envelope(x, sr, win_div=100, mode="same")
 
     peak = env_smooth.max()
     if peak < 1e-10:
@@ -144,14 +161,7 @@ def crest_factor(x: np.ndarray) -> float:
 
 def onset_density(x: np.ndarray, sr: int = 8000, threshold_factor: float = 2.0) -> float:
     """Number of amplitude onsets per second."""
-    frame_len = max(sr // 100, 32)
-    hop = frame_len // 2
-    n_frames = max(1, (len(x) - frame_len) // hop)
-
-    frame_energy = np.array([
-        np.sqrt(np.mean(x[i * hop: i * hop + frame_len] ** 2))
-        for i in range(n_frames)
-    ])
+    frame_energy = _frame_rms(x, sr)
 
     if len(frame_energy) < 3:
         return 0.0
@@ -172,14 +182,7 @@ def ioi_entropy(x: np.ndarray, sr: int = 8000, threshold_factor: float = 2.0) ->
 
     Higher = more irregular/complex rhythm. 0 = perfectly periodic.
     """
-    frame_len = max(sr // 100, 32)
-    hop = frame_len // 2
-    n_frames = max(1, (len(x) - frame_len) // hop)
-
-    frame_energy = np.array([
-        np.sqrt(np.mean(x[i * hop: i * hop + frame_len] ** 2))
-        for i in range(n_frames)
-    ])
+    frame_energy = _frame_rms(x, sr)
 
     if len(frame_energy) < 3:
         return 0.0
@@ -217,10 +220,7 @@ def gap_ratio(x: np.ndarray, sr: int = 8000, silence_thresh: float = 0.01) -> fl
 
     Higher = more gaps/silence. Lower = more continuous.
     """
-    env = np.abs(hilbert(x))
-    win = max(sr // 100, 8)
-    kernel = np.ones(win) / win
-    env_smooth = np.convolve(env, kernel, mode="same")
+    env_smooth = _smoothed_envelope(x, sr, win_div=100, mode="same")
 
     rms = np.sqrt(np.mean(x ** 2))
     thresh = max(silence_thresh, rms * 0.1)
@@ -237,14 +237,7 @@ def short_term_variance(x: np.ndarray, sr: int = 8000) -> float:
 
     Higher = more temporal variation in energy.
     """
-    frame_len = max(sr // 20, 64)
-    hop = frame_len // 2
-    n_frames = max(1, (len(x) - frame_len) // hop)
-
-    frame_rms = np.array([
-        np.sqrt(np.mean(x[i * hop: i * hop + frame_len] ** 2))
-        for i in range(n_frames)
-    ])
+    frame_rms = _frame_rms(x, sr, frame_div=20)
 
     if len(frame_rms) < 2:
         return 0.0
@@ -257,10 +250,7 @@ def am_modulation_index(x: np.ndarray, sr: int = 8000) -> float:
     Computed as (env_max - env_min) / (env_max + env_min) on the smoothed
     envelope. Higher = more pronounced amplitude modulation.
     """
-    env = np.abs(hilbert(x))
-    win = max(sr // 50, 16)
-    kernel = np.ones(win) / win
-    env_smooth = np.convolve(env, kernel, mode="valid")
+    env_smooth = _smoothed_envelope(x, sr, win_div=50, mode="valid")
 
     if len(env_smooth) < 2:
         return 0.0
@@ -347,10 +337,7 @@ def transient_energy_ratio(x: np.ndarray, sr: int = 8000,
 def effective_duration(x: np.ndarray, sr: int = 8000,
                        threshold_pct: float = 0.1) -> float:
     """Duration (seconds) where envelope exceeds threshold_pct of peak."""
-    env = np.abs(hilbert(x))
-    win = max(sr // 100, 8)
-    kernel = np.ones(win) / win
-    env_smooth = np.convolve(env, kernel, mode="same")
+    env_smooth = _smoothed_envelope(x, sr, win_div=100, mode="same")
     peak = env_smooth.max()
     if peak < 1e-10:
         return 0.0
@@ -360,10 +347,7 @@ def effective_duration(x: np.ndarray, sr: int = 8000,
 
 def envelope_area(x: np.ndarray, sr: int = 8000) -> float:
     """Integral of the smoothed envelope (area under curve)."""
-    env = np.abs(hilbert(x))
-    win = max(sr // 50, 16)
-    kernel = np.ones(win) / win
-    env_smooth = np.convolve(env, kernel, mode="valid")
+    env_smooth = _smoothed_envelope(x, sr, win_div=50, mode="valid")
     return float(np.trapz(env_smooth) / sr)
 
 
@@ -372,10 +356,7 @@ def envelope_entropy(x: np.ndarray, sr: int = 8000, n_bins: int = 32) -> float:
 
     Higher = more uniform/complex envelope. Lower = peaked/simple.
     """
-    env = np.abs(hilbert(x))
-    win = max(sr // 50, 16)
-    kernel = np.ones(win) / win
-    env_smooth = np.convolve(env, kernel, mode="valid")
+    env_smooth = _smoothed_envelope(x, sr, win_div=50, mode="valid")
 
     if len(env_smooth) < 2 or env_smooth.max() < 1e-10:
         return 0.0
@@ -396,14 +377,7 @@ def onset_interval_cv(x: np.ndarray, sr: int = 8000,
 
     0 = perfectly regular. Higher = more irregular timing.
     """
-    frame_len = max(sr // 100, 32)
-    hop = frame_len // 2
-    n_frames = max(1, (len(x) - frame_len) // hop)
-
-    frame_energy = np.array([
-        np.sqrt(np.mean(x[i * hop: i * hop + frame_len] ** 2))
-        for i in range(n_frames)
-    ])
+    frame_energy = _frame_rms(x, sr)
 
     if len(frame_energy) < 3:
         return 0.0
@@ -430,10 +404,7 @@ def modulation_spectrum_peak(x: np.ndarray, sr: int = 8000) -> float:
 
     Captures the dominant rate of amplitude fluctuation.
     """
-    env = np.abs(hilbert(x))
-    win = max(sr // 50, 16)
-    kernel = np.ones(win) / win
-    env_smooth = np.convolve(env, kernel, mode="valid")
+    env_smooth = _smoothed_envelope(x, sr, win_div=50, mode="valid")
 
     env_centered = env_smooth - np.mean(env_smooth)
     if np.std(env_centered) < 1e-10:
@@ -504,21 +475,6 @@ METRIC_GROUPS: dict[str, dict] = {
         "supporting": [],
     },
 }
-
-
-def get_representative_metric_names() -> list[str]:
-    """Return the 12 representative metric names across all 7 groups."""
-    names = []
-    for g in METRIC_GROUPS.values():
-        names.extend(g["representative"])
-    return names
-
-
-def compute_group_representatives(x: np.ndarray, sr: int = 8000) -> dict[str, float]:
-    """Compute only the 12 representative metrics (one pass, lighter than full 27)."""
-    reps = get_representative_metric_names()
-    all_m = compute_all_metrics(x, sr)
-    return {k: all_m[k] for k in reps}
 
 
 # ---------------------------------------------------------------------------

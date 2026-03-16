@@ -17,19 +17,17 @@ Usage:
 
 import argparse
 import os
-import pickle
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import numpy as np
 import torch
 
 from src.utils.config import load_config
 from src.utils.seed import set_seed
-from src.data.loaders import build_dataloaders, build_model, load_checkpoint
-from src.pipelines.latent_extraction import extract_latent_vectors
-from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis
+from src.data.loaders import build_model, load_checkpoint
+from src.pipelines.latent_extraction import load_or_fit_pca
+from src.pipelines.pca_control import sweep_axis
 from src.pipelines.control_spec import (
     build_controls_spec,
     save_controls_spec,
@@ -67,25 +65,12 @@ def main():
     print(f"✅ Loaded checkpoint: {args.checkpoint}")
 
     # --- PCA ---
-    if args.pca_dir and os.path.exists(os.path.join(args.pca_dir, "pca_pipe.pkl")):
-        print(f"\n📦 Loading existing PCA from {args.pca_dir}")
-        with open(os.path.join(args.pca_dir, "pca_pipe.pkl"), "rb") as f:
-            pipe = pickle.load(f)
-        Z_pca = np.load(os.path.join(args.pca_dir, "Z_pca.npy"))
-    else:
-        data = build_dataloaders(config, args.data_dir, batch_size=64, full_dataset=True)
-        print(f"   Dataset size: {len(data['wav_files'])}")
-
-        print("\n" + "=" * 60)
-        print("Extracting latent vectors")
-        print("=" * 60)
-        Z = extract_latent_vectors(model, data["all_loader"], device)
-        np.save(os.path.join(args.output_dir, "Z.npy"), Z)
-
-        print("\n" + "=" * 60)
-        print(f"Fitting PCA ({Z.shape[1]}D → {args.n_components}D)")
-        print("=" * 60)
-        pipe, Z_pca = fit_pca_pipeline(Z, n_components=args.n_components, save_dir=args.output_dir)
+    pipe, Z_pca = load_or_fit_pca(
+        model, config, args.data_dir, device,
+        pca_dir=args.pca_dir,
+        n_components=args.n_components,
+        save_dir=args.output_dir,
+    )
 
     evr = pipe.named_steps["pca"].explained_variance_ratio_
 

@@ -7,7 +7,6 @@ Produces three categories of evidence:
   3. Effect size: Cohen's d or relative change for PC1-4 vs PC5-8
 """
 
-import json
 from pathlib import Path
 
 import numpy as np
@@ -57,46 +56,6 @@ def compute_monotonicity_matrix(sweep_results: list[dict]) -> dict:
         "rho": rho,
         "pvalue": pval,
     }
-
-
-def print_monotonicity_report(mono: dict, sig_threshold: float = 0.05):
-    """Print a readable monotonicity report."""
-    metric_names = mono["metric_names"]
-    pc_names = mono["pc_names"]
-    rho = mono["rho"]
-    pval = mono["pvalue"]
-
-    print("\n" + "=" * 70)
-    print("MONOTONICITY: Spearman ρ (PC × Metric)")
-    print("=" * 70)
-
-    header = f"{'':>12s}"
-    for mn in metric_names:
-        short = mn[:16]
-        header += f" {short:>16s}"
-    print(header)
-    print("-" * len(header))
-
-    for pi, pc in enumerate(pc_names):
-        row = f"{pc:>12s}"
-        for mi in range(len(metric_names)):
-            r = rho[pi, mi]
-            p = pval[pi, mi]
-            star = "*" if p < sig_threshold else " "
-            row += f" {r:>+7.3f}{star:>1s}       "
-        print(row)
-
-    print(f"\n* = p < {sig_threshold}")
-
-    print("\nStrong monotonic pairs (|ρ| > 0.8, p < 0.05):")
-    for pi, pc in enumerate(pc_names):
-        strong = []
-        for mi, mn in enumerate(metric_names):
-            if abs(rho[pi, mi]) > 0.8 and pval[pi, mi] < sig_threshold:
-                direction = "↑" if rho[pi, mi] > 0 else "↓"
-                strong.append(f"{mn}({direction}, ρ={rho[pi, mi]:+.3f})")
-        if strong:
-            print(f"  {pc}: {', '.join(strong)}")
 
 
 # ---------------------------------------------------------------------------
@@ -212,51 +171,8 @@ def print_effect_size_report(effects: dict, primary_pcs: list[str] = None, secon
 
 
 # ---------------------------------------------------------------------------
-# 4. Plot: correlation heatmap
+# 4. Plot: selectivity bar chart
 # ---------------------------------------------------------------------------
-
-def plot_monotonicity_heatmap(mono: dict, save_path: str | None = None):
-    """Plot Spearman ρ as a heatmap with significance markers."""
-    import matplotlib.pyplot as plt
-
-    rho = mono["rho"]
-    pval = mono["pvalue"]
-    metric_names = mono["metric_names"]
-    pc_names = mono["pc_names"]
-
-    short_names = [n.replace("_dBps", "").replace("_ps", "").replace("_hz", "")
-                   .replace("_bits", "").replace("_s", "")[:18] for n in metric_names]
-
-    fig, ax = plt.subplots(figsize=(max(14, len(metric_names) * 0.9), max(6, len(pc_names) * 0.7)))
-    im = ax.imshow(rho, cmap="RdBu_r", vmin=-1, vmax=1, aspect="auto")
-
-    for pi in range(len(pc_names)):
-        for mi in range(len(metric_names)):
-            r = rho[pi, mi]
-            p = pval[pi, mi]
-            star = "**" if p < 0.01 else ("*" if p < 0.05 else "")
-            color = "white" if abs(r) > 0.5 else "black"
-            ax.text(mi, pi, f"{r:+.2f}{star}", ha="center", va="center",
-                    fontsize=7, color=color)
-
-    ax.set_xticks(range(len(metric_names)))
-    ax.set_xticklabels(short_names, rotation=45, ha="right", fontsize=8)
-    ax.set_yticks(range(len(pc_names)))
-    ax.set_yticklabels(pc_names, fontsize=9)
-
-    cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-    cbar.set_label("Spearman ρ", fontsize=10)
-
-    ax.set_title("Monotonicity: Spearman ρ (PC × Metric)\n* p<0.05  ** p<0.01", fontsize=12)
-    plt.tight_layout()
-
-    if save_path:
-        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  Saved: {save_path}")
-
-    plt.show()
-
 
 def plot_selectivity_bar(cross: dict, save_path: str | None = None):
     """Bar chart comparing on-target vs off-target |ρ| for each PC."""
@@ -364,57 +280,3 @@ def print_cross_seed_report(stability: dict):
     for pi in range(len(stability["pc_names"])):
         consistent = np.sum(sa[pi] >= 0.5) / len(stability["metric_names"])
         print(f"  {stability['pc_names'][pi]}: {consistent:.0%}")
-
-
-# ---------------------------------------------------------------------------
-# 6. Generate evidence JSON for thesis
-# ---------------------------------------------------------------------------
-
-def generate_evidence_json(
-    mono: dict,
-    cross: dict,
-    effects: dict,
-    stability: dict | None = None,
-    save_path: str | None = None,
-) -> dict:
-    """Compile all validation evidence into a single JSON."""
-    evidence = {
-        "monotonicity": {
-            "description": "Spearman rank correlation between control value and signal metric",
-            "strong_pairs": [],
-        },
-        "orthogonality": cross,
-        "effect_sizes": effects,
-    }
-
-    for pi, pc in enumerate(mono["pc_names"]):
-        for mi, mn in enumerate(mono["metric_names"]):
-            r = mono["rho"][pi, mi]
-            p = mono["pvalue"][pi, mi]
-            if abs(r) > 0.7 and p < 0.05:
-                evidence["monotonicity"]["strong_pairs"].append({
-                    "pc": pc, "metric": mn,
-                    "rho": round(float(r), 4),
-                    "p_value": round(float(p), 6),
-                })
-
-    if stability:
-        evidence["cross_seed_stability"] = {
-            "n_seeds": stability["n_seeds"],
-            "seeds": stability["seeds"],
-            "evr_mean": [round(float(x), 4) for x in stability["evr_mean"]],
-            "evr_std": [round(float(x), 4) for x in stability["evr_std"]],
-            "sign_consistency_per_pc": [
-                round(float(np.sum(stability["sign_agreement"][pi] >= 0.5) / len(stability["metric_names"])), 2)
-                for pi in range(len(stability["pc_names"]))
-            ],
-        }
-
-    if save_path:
-        p = Path(save_path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "w") as f:
-            json.dump(evidence, f, indent=2, default=str)
-        print(f"  Saved: {p}")
-
-    return evidence

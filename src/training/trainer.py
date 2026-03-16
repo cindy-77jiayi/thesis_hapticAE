@@ -121,7 +121,7 @@ class Trainer:
             loss = recon + beta * kl
             kl_val = kl.detach().item()
 
-        return loss, recon.detach().item(), kl_val, x_hat_raw
+        return loss, recon.detach().item(), kl_val
 
     def _run_epoch(self, loader: DataLoader, train: bool, epoch: int) -> float:
         self.model.train(train)
@@ -136,7 +136,7 @@ class Trainer:
             if train:
                 self.optimizer.zero_grad(set_to_none=True)
 
-            loss, recon, kl_val, x_hat_raw = self._compute_loss(x, epoch)
+            loss, recon, kl_val = self._compute_loss(x, epoch)
 
             if not torch.isfinite(loss):
                 continue
