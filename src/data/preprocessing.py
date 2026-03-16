@@ -74,10 +74,11 @@ def load_segment_energy(
     tries: int = 30,
     min_energy: float = 5e-4,
     max_resample: int = 5,
+    clip_range: tuple[float, float] = (-3.0, 3.0),
 ) -> np.ndarray:
     """Load a WAV file and extract an energy-rich segment of length T.
 
-    The segment is RMS-normalized, scaled, and clipped to [-3, 3].
+    The segment is RMS-normalized, scaled, and clipped to *clip_range*.
     """
     y, sr = librosa.load(path, sr=None, mono=True)
     if sr != sr_expect:
@@ -116,7 +117,7 @@ def load_segment_energy(
 
     seg = best_seg_global / (global_rms + 1e-6)
     seg = seg * scale
-    seg = np.clip(seg, -3.0, 3.0)
+    seg = np.clip(seg, clip_range[0], clip_range[1])
 
     if use_minmax:
         seg = minmax_norm(seg)

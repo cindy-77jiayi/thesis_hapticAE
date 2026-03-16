@@ -26,7 +26,7 @@ class ConvAE(nn.Module):
         kernel_size: int = 9,
         activation: str = "leaky_relu",
         norm: str = "group",
-        use_batchnorm: bool = True,  # kept for old config compatibility
+        **_kwargs,
     ):
         super().__init__()
         self.T = T

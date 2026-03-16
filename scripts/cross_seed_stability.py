@@ -18,30 +18,25 @@ Usage (run 3 times with different configs, then compare):
 """
 
 import argparse
+import json
 import os
-import pickle
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 
 from src.utils.config import load_config
 from src.utils.seed import set_seed
-from src.data.preprocessing import collect_clean_wavs, estimate_global_rms
-from src.data.dataset import HapticWavDataset
-from src.models.conv_vae import ConvVAE
+from src.data.loaders import build_dataloaders, build_model, load_checkpoint
 from src.pipelines.latent_extraction import extract_latent_vectors
-from src.pipelines.pca_control import fit_pca_pipeline
-from src.pipelines.pca_control import sweep_axis
+from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis
 from src.pipelines.control_spec import compute_control_ranges
 from src.eval.pc_validation import (
     compute_monotonicity_matrix,
     compare_cross_seed,
     print_cross_seed_report,
-    generate_evidence_json,
 )
 
 
@@ -72,41 +67,17 @@ def main():
         print(f"Processing seed={seed}, run={run_name}")
         print(f"{'='*60}")
 
-        # --- Data ---
         data_cfg = config["data"]
-        wav_files = collect_clean_wavs(args.data_dir)
-        N = len(wav_files)
-        perm = np.random.permutation(N)
-        train_files = [wav_files[i] for i in perm[:int(data_cfg["train_split"] * N)]]
-        global_rms = estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
+        data = build_dataloaders(config, args.data_dir, batch_size=64, full_dataset=True)
 
-        all_ds = HapticWavDataset(
-            wav_files, T=data_cfg["T"], sr_expect=data_cfg["sr"],
-            global_rms=global_rms, scale=data_cfg["scale"],
-        )
-        all_loader = DataLoader(all_ds, batch_size=64, shuffle=False, drop_last=False)
-
-        # --- Model ---
-        model_cfg = config["model"]
-        model = ConvVAE(
-            T=data_cfg["T"],
-            latent_dim=model_cfg["latent_dim"],
-            channels=tuple(model_cfg["channels"]),
-            first_kernel=model_cfg.get("first_kernel", 25),
-            kernel_size=model_cfg.get("kernel_size", 9),
-            activation=model_cfg.get("activation", "leaky_relu"),
-            norm=model_cfg.get("norm", "group"),
-        ).to(device)
-
+        model = build_model(config, device)
         ckpt_path = os.path.join(args.output_base, run_name, "best_model.pt")
         assert os.path.exists(ckpt_path), f"Checkpoint not found: {ckpt_path}"
-        state = torch.load(ckpt_path, map_location=device, weights_only=True)
-        model.load_state_dict(state)
-        model.eval()
+        load_checkpoint(model, ckpt_path, device)
         print(f"  ✅ Loaded: {ckpt_path}")
 
         # --- Extract + PCA ---
-        Z = extract_latent_vectors(model, all_loader, device)
+        Z = extract_latent_vectors(model, data["all_loader"], device)
         pipe, Z_pca = fit_pca_pipeline(Z, n_components=args.n_components)
         evr = pipe.named_steps["pca"].explained_variance_ratio_
 
@@ -171,7 +142,6 @@ def main():
     plt.show()
 
     # --- Save stability report ---
-    import json
     report = {
         "n_seeds": stability["n_seeds"],
         "seeds": stability["seeds"],

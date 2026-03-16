@@ -1,6 +1,5 @@
 """PyTorch Dataset classes for haptic signal data."""
 
-import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -30,17 +29,12 @@ class HapticWavDataset(Dataset):
         return len(self.files)
 
     def __getitem__(self, idx: int) -> torch.Tensor:
-        for _ in range(10):
-            x = load_segment_energy(
-                self.files[idx],
-                T=self.T,
-                sr_expect=self.sr_expect,
-                global_rms=self.global_rms,
-                scale=self.scale,
-                use_minmax=self.use_minmax,
-            )
-            if x is not None:
-                return torch.from_numpy(x).unsqueeze(0)  # (1, T)
-            idx = np.random.randint(0, len(self.files))
-
-        return torch.zeros(1, self.T, dtype=torch.float32)
+        x = load_segment_energy(
+            self.files[idx],
+            T=self.T,
+            sr_expect=self.sr_expect,
+            global_rms=self.global_rms,
+            scale=self.scale,
+            use_minmax=self.use_minmax,
+        )
+        return torch.from_numpy(x).unsqueeze(0)  # (1, T)

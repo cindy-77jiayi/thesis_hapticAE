@@ -17,19 +17,17 @@ Usage:
 
 import argparse
 import os
+import pickle
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 
 from src.utils.config import load_config
 from src.utils.seed import set_seed
-from src.data.preprocessing import collect_clean_wavs, estimate_global_rms
-from src.data.dataset import HapticWavDataset
-from src.models.conv_vae import ConvVAE
+from src.data.loaders import build_dataloaders, build_model, load_checkpoint
 from src.pipelines.latent_extraction import extract_latent_vectors
 from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis
 from src.pipelines.control_spec import (
@@ -60,54 +58,28 @@ def main():
     gallery_dir = os.path.join(args.output_dir, "pc_sweep_gallery")
     os.makedirs(gallery_dir, exist_ok=True)
 
-    # --- Data ---
     data_cfg = config["data"]
-    wav_files = collect_clean_wavs(args.data_dir)
-    assert len(wav_files) > 0, f"No WAV files found in {args.data_dir}"
-
-    N = len(wav_files)
-    perm = np.random.permutation(N)
-    train_files = [wav_files[i] for i in perm[:int(data_cfg["train_split"] * N)]]
-    global_rms = estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
-
-    all_ds = HapticWavDataset(
-        wav_files, T=data_cfg["T"], sr_expect=data_cfg["sr"],
-        global_rms=global_rms, scale=data_cfg["scale"],
-    )
-    all_loader = DataLoader(all_ds, batch_size=64, shuffle=False, drop_last=False)
 
     # --- Model ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_cfg = config["model"]
-    model = ConvVAE(
-        T=data_cfg["T"],
-        latent_dim=model_cfg["latent_dim"],
-        channels=tuple(model_cfg["channels"]),
-        first_kernel=model_cfg.get("first_kernel", 25),
-        kernel_size=model_cfg.get("kernel_size", 9),
-        activation=model_cfg.get("activation", "leaky_relu"),
-        norm=model_cfg.get("norm", "group"),
-    ).to(device)
-
-    state = torch.load(args.checkpoint, map_location=device, weights_only=True)
-    model.load_state_dict(state)
-    model.eval()
+    model = build_model(config, device)
+    load_checkpoint(model, args.checkpoint, device)
     print(f"✅ Loaded checkpoint: {args.checkpoint}")
-    print(f"   Latent dim: {model.latent_dim}, Dataset size: {len(all_ds)}")
 
     # --- PCA ---
-    import pickle
     if args.pca_dir and os.path.exists(os.path.join(args.pca_dir, "pca_pipe.pkl")):
         print(f"\n📦 Loading existing PCA from {args.pca_dir}")
         with open(os.path.join(args.pca_dir, "pca_pipe.pkl"), "rb") as f:
             pipe = pickle.load(f)
         Z_pca = np.load(os.path.join(args.pca_dir, "Z_pca.npy"))
-        Z = np.load(os.path.join(args.pca_dir, "Z.npy"))
     else:
+        data = build_dataloaders(config, args.data_dir, batch_size=64, full_dataset=True)
+        print(f"   Dataset size: {len(data['wav_files'])}")
+
         print("\n" + "=" * 60)
         print("Extracting latent vectors")
         print("=" * 60)
-        Z = extract_latent_vectors(model, all_loader, device)
+        Z = extract_latent_vectors(model, data["all_loader"], device)
         np.save(os.path.join(args.output_dir, "Z.npy"), Z)
 
         print("\n" + "=" * 60)

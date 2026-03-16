@@ -29,13 +29,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import numpy as np
 import torch
 from scipy.stats import spearmanr
-from torch.utils.data import DataLoader
 
 from src.utils.config import load_config
 from src.utils.seed import set_seed
-from src.data.preprocessing import collect_clean_wavs, estimate_global_rms
-from src.data.dataset import HapticWavDataset
-from src.models.conv_vae import ConvVAE
+from src.data.loaders import build_dataloaders, build_model, load_checkpoint
 from src.pipelines.latent_extraction import extract_latent_vectors
 from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis
 from src.pipelines.control_spec import compute_control_ranges, METRIC_LABELS
@@ -440,18 +437,8 @@ def main():
     data_cfg = config["data"]
 
     # --- Load model ---
-    model_cfg = config["model"]
-    model = ConvVAE(
-        T=data_cfg["T"], latent_dim=model_cfg["latent_dim"],
-        channels=tuple(model_cfg["channels"]),
-        first_kernel=model_cfg.get("first_kernel", 25),
-        kernel_size=model_cfg.get("kernel_size", 9),
-        activation=model_cfg.get("activation", "leaky_relu"),
-        norm=model_cfg.get("norm", "group"),
-    ).to(device)
-    state = torch.load(args.checkpoint, map_location=device, weights_only=True)
-    model.load_state_dict(state)
-    model.eval()
+    model = build_model(config, device)
+    load_checkpoint(model, args.checkpoint, device)
     print(f"✅ Loaded: {args.checkpoint}")
 
     # --- Load PCA ---
@@ -459,20 +446,10 @@ def main():
         with open(os.path.join(args.pca_dir, "pca_pipe.pkl"), "rb") as f:
             pipe = pickle.load(f)
         Z_pca = np.load(os.path.join(args.pca_dir, "Z_pca.npy"))
-        Z = np.load(os.path.join(args.pca_dir, "Z.npy"))
         print(f"📦 Loaded PCA from {args.pca_dir}")
     else:
-        wav_files = collect_clean_wavs(args.data_dir)
-        N = len(wav_files)
-        perm = np.random.permutation(N)
-        train_files = [wav_files[i] for i in perm[:int(data_cfg["train_split"] * N)]]
-        global_rms = estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
-        all_ds = HapticWavDataset(
-            wav_files, T=data_cfg["T"], sr_expect=data_cfg["sr"],
-            global_rms=global_rms, scale=data_cfg["scale"],
-        )
-        loader = DataLoader(all_ds, batch_size=64, shuffle=False, drop_last=False)
-        Z = extract_latent_vectors(model, loader, device)
+        data = build_dataloaders(config, args.data_dir, batch_size=64, full_dataset=True)
+        Z = extract_latent_vectors(model, data["all_loader"], device)
         pipe, Z_pca = fit_pca_pipeline(Z, n_components=args.n_components,
                                        save_dir=args.output_dir)
 
@@ -551,37 +528,15 @@ def main():
             run_name = cfg.get("run_name", "unknown")
             set_seed(seed)
 
-            m_cfg = cfg["model"]
-            d_cfg = cfg["data"]
-            m = ConvVAE(
-                T=d_cfg["T"], latent_dim=m_cfg["latent_dim"],
-                channels=tuple(m_cfg["channels"]),
-                first_kernel=m_cfg.get("first_kernel", 25),
-                kernel_size=m_cfg.get("kernel_size", 9),
-                activation=m_cfg.get("activation", "leaky_relu"),
-                norm=m_cfg.get("norm", "group"),
-            ).to(device)
-
+            m = build_model(cfg, device)
             ckpt = os.path.join(args.seed_output_base, run_name, "best_model.pt")
             if not os.path.exists(ckpt):
                 print(f"  ⚠️ Checkpoint not found: {ckpt}, skipping")
                 continue
 
-            m.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
-            m.eval()
-
-            wav_files = collect_clean_wavs(args.data_dir)
-            N = len(wav_files)
-            perm = np.random.permutation(N)
-            train_files = [wav_files[i] for i in perm[:int(d_cfg["train_split"] * N)]]
-            global_rms = estimate_global_rms(train_files, n=200, sr_expect=d_cfg["sr"])
-            all_ds = HapticWavDataset(
-                wav_files, T=d_cfg["T"], sr_expect=d_cfg["sr"],
-                global_rms=global_rms, scale=d_cfg["scale"],
-            )
-            loader = DataLoader(all_ds, batch_size=64, shuffle=False, drop_last=False)
-
-            Z_seed = extract_latent_vectors(m, loader, device)
+            load_checkpoint(m, ckpt, device)
+            seed_data = build_dataloaders(cfg, args.data_dir, batch_size=64, full_dataset=True)
+            Z_seed = extract_latent_vectors(m, seed_data["all_loader"], device)
             pipe_seed, _ = fit_pca_pipeline(Z_seed, n_components=args.n_components)
             seed_pipes[seed] = pipe_seed
             print(f"  ✅ seed={seed}: extracted + PCA done")
