@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import torch
 from sklearn.pipeline import Pipeline
 
 from src.pipelines.pca_control import sweep_axis
