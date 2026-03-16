@@ -37,42 +37,20 @@ from src.data.preprocessing import collect_clean_wavs, estimate_global_rms
 from src.data.dataset import HapticWavDataset
 from src.models.conv_vae import ConvVAE
 from src.pipelines.latent_extraction import extract_latent_vectors
-from src.pipelines.pca_control import fit_pca_pipeline, control_to_latent
+from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis
 from src.pipelines.control_spec import compute_control_ranges, METRIC_LABELS
-from src.eval.signal_metrics import compute_all_metrics
+from src.eval.pc_validation import (
+    compute_cross_influence,
+    compute_effect_sizes,
+    print_cross_influence_report,
+    print_effect_size_report,
+    plot_selectivity_bar,
+)
 
 
 # ===================================================================
 # Step 2: Extended metric binding
 # ===================================================================
-
-def sweep_with_reference(
-    pipe, model, device, axis, sweep_range, reference,
-    n_steps=21, T=4000, sr=8000,
-):
-    """Sweep one PC axis around a given reference point."""
-    n_components = pipe.named_steps["pca"].n_components
-    values = np.linspace(sweep_range[0], sweep_range[1], n_steps)
-
-    signals, metrics_list = [], []
-    model.eval()
-    with torch.no_grad():
-        for val in values:
-            c = reference.copy()
-            c[axis] = val
-            z_np = control_to_latent(pipe, c)
-            z_t = torch.from_numpy(z_np).float().unsqueeze(0).to(device)
-            sig = model.decode(z_t, target_len=T).squeeze().cpu().numpy()
-            signals.append(sig)
-            metrics_list.append(compute_all_metrics(sig, sr=sr))
-
-    return {
-        "axis": axis,
-        "values": values.tolist(),
-        "signals": np.stack(signals),
-        "metrics": metrics_list,
-    }
-
 
 def compute_extended_bindings(sweep_results, sig_threshold=0.05):
     """Compute Spearman ρ for each (PC, metric) pair and rank bindings."""
@@ -506,17 +484,16 @@ def main():
     print(f"STEP 2: Extended sweeps ({args.n_components} PCs × {args.n_sweep_steps} steps × 27 metrics)")
     print("=" * 60)
 
-    origin_ref = np.zeros(args.n_components, dtype=np.float32)
     sweep_origin = []
     for i in range(args.n_components):
         r = ranges[i]
         print(f"  PC{i+1}: [{r['p5']:+.2f}, {r['p95']:+.2f}]")
-        sweep = sweep_with_reference(
+        sweep = sweep_axis(
             pipe, model, device, axis=i,
             sweep_range=(r["p5"], r["p95"]),
-            reference=origin_ref,
             n_steps=args.n_sweep_steps,
             T=data_cfg["T"], sr=data_cfg["sr"],
+            with_metrics=True,
         )
         sweep_origin.append(sweep)
 
@@ -544,12 +521,13 @@ def main():
     sweep_mean = []
     for i in range(args.n_components):
         r = ranges[i]
-        sweep = sweep_with_reference(
+        sweep = sweep_axis(
             pipe, model, device, axis=i,
             sweep_range=(r["p5"], r["p95"]),
-            reference=Z_pca_mean,
             n_steps=args.n_sweep_steps,
             T=data_cfg["T"], sr=data_cfg["sr"],
+            reference=Z_pca_mean,
+            with_metrics=True,
         )
         sweep_mean.append(sweep)
 
@@ -621,12 +599,37 @@ def main():
             plot_alignment(alignment,
                            save_path=os.path.join(args.output_dir, "pca_axis_alignment.png"))
 
+    # --- Cross-influence (orthogonality) ---
+    print("\n" + "=" * 60)
+    print("ORTHOGONALITY: Cross-influence analysis")
+    print("=" * 60)
+
+    auto_bindings = {}
+    for pi, pc in enumerate(bindings["pc_names"]):
+        top = [m for m in bindings["ranked_bindings"][pc]
+               if m["significant"] and m["metric"] != "peak_amplitude"][:2]
+        auto_bindings[pc] = [m["metric"] for m in top] if top else ["rms_energy"]
+
+    cross = compute_cross_influence(bindings, auto_bindings)
+    print_cross_influence_report(cross)
+    plot_selectivity_bar(cross, save_path=os.path.join(args.output_dir, "selectivity_extended.png"))
+
+    # --- Effect sizes (primary vs secondary) ---
+    print("\n" + "=" * 60)
+    print("EFFECT SIZE: Primary (PC1-4) vs Secondary (PC5-8)")
+    print("=" * 60)
+
+    effects = compute_effect_sizes(sweep_origin)
+    print_effect_size_report(effects)
+
     # --- Save extended bindings JSON ---
     binding_json = {
         "n_metrics": len(bindings["metric_names"]),
         "metric_names": bindings["metric_names"],
         "ranked_bindings": bindings["ranked_bindings"],
         "reference_comparison": ref_comparison,
+        "cross_influence": cross,
+        "effect_sizes": effects,
     }
     binding_path = os.path.join(args.output_dir, "metric_binding_extended.json")
     with open(binding_path, "w") as f:

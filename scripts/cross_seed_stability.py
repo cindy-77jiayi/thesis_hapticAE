@@ -35,7 +35,8 @@ from src.data.dataset import HapticWavDataset
 from src.models.conv_vae import ConvVAE
 from src.pipelines.latent_extraction import extract_latent_vectors
 from src.pipelines.pca_control import fit_pca_pipeline
-from src.pipelines.control_spec import compute_control_ranges, sweep_with_metrics
+from src.pipelines.pca_control import sweep_axis
+from src.pipelines.control_spec import compute_control_ranges
 from src.eval.pc_validation import (
     compute_monotonicity_matrix,
     compare_cross_seed,
@@ -114,12 +115,13 @@ def main():
         sweep_results = []
         for i in range(args.n_components):
             r = ranges[i]
-            sweep = sweep_with_metrics(
+            sweep = sweep_axis(
                 pipe, model, device,
                 axis=i,
                 sweep_range=(r["p5"], r["p95"]),
                 n_steps=args.n_sweep_steps,
                 T=data_cfg["T"], sr=data_cfg["sr"],
+                with_metrics=True,
             )
             sweep_results.append(sweep)
 

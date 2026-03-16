@@ -110,31 +110,3 @@ def load_segment_energy(
     return seg.astype(np.float32)
 
 
-def make_vibration(
-    sr: int = 1000, duration: float = 1.0, seed: int | None = None
-) -> np.ndarray:
-    """Generate a synthetic vibrotactile signal for testing."""
-    if seed is not None:
-        np.random.seed(seed)
-
-    t = np.linspace(0, duration, int(sr * duration), endpoint=False)
-    freq = np.random.uniform(80, 300)
-    signal = np.sin(2 * np.pi * freq * t)
-
-    decay = np.exp(-np.random.uniform(1, 5) * t)
-    signal *= decay
-
-    n_pulses = np.random.randint(2, 6)
-    for _ in range(n_pulses):
-        pos = np.random.randint(0, len(t))
-        width = np.random.randint(5, 30)
-        amp = np.random.uniform(0.3, 1.0)
-        lo = max(0, pos - width)
-        hi = min(len(t), pos + width)
-        signal[lo:hi] += amp
-
-    signal += np.random.randn(len(t)) * 0.02
-
-    mx = np.max(np.abs(signal)) + 1e-8
-    signal = signal / mx
-    return signal.astype(np.float32)

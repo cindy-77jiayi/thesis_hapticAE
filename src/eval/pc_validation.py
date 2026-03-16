@@ -22,7 +22,7 @@ def compute_monotonicity_matrix(sweep_results: list[dict]) -> dict:
     """Compute Spearman ρ and p-value for each (PC, metric) pair.
 
     Args:
-        sweep_results: list of dicts from sweep_with_metrics(), one per PC.
+        sweep_results: list of dicts from sweep_axis(with_metrics=True), one per PC.
             Each must have 'values' (list[float]) and 'metrics' (list[dict]).
 
     Returns:

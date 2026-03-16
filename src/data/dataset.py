@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from .preprocessing import load_segment_energy, make_vibration
+from .preprocessing import load_segment_energy
 
 
 class HapticWavDataset(Dataset):
@@ -44,19 +44,3 @@ class HapticWavDataset(Dataset):
             idx = np.random.randint(0, len(self.files))
 
         return torch.zeros(1, self.T, dtype=torch.float32)
-
-
-class SyntheticVibrationDataset(Dataset):
-    """Dataset of procedurally generated vibrotactile signals for testing."""
-
-    def __init__(self, n_samples: int = 5000, T: int = 1000, sr: int = 1000):
-        self.data = np.stack(
-            [make_vibration(sr=sr, duration=T / sr) for _ in range(n_samples)]
-        )
-        self.data = self.data.astype(np.float32)
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __getitem__(self, idx: int) -> torch.Tensor:
-        return torch.from_numpy(self.data[idx]).unsqueeze(0)  # (1, T)

@@ -31,12 +31,11 @@ from src.data.preprocessing import collect_clean_wavs, estimate_global_rms
 from src.data.dataset import HapticWavDataset
 from src.models.conv_vae import ConvVAE
 from src.pipelines.latent_extraction import extract_latent_vectors
-from src.pipelines.pca_control import fit_pca_pipeline
+from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis
 from src.pipelines.control_spec import (
     build_controls_spec,
     save_controls_spec,
     build_controls_table_md,
-    sweep_with_metrics,
     plot_sweep_gallery,
     plot_metric_trends,
 )
@@ -138,11 +137,12 @@ def main():
         ax = ctrl["axis"]
         r = ctrl["range"]
         print(f"  PC{ax + 1}: sweeping [{r['low']:+.2f}, {r['high']:+.2f}]")
-        sweep = sweep_with_metrics(
+        sweep = sweep_axis(
             pipe, model, device,
             axis=ax, sweep_range=(r["low"], r["high"]),
             n_steps=args.n_sweep_steps,
             T=data_cfg["T"], sr=data_cfg["sr"],
+            with_metrics=True,
         )
         sweep_results.append(sweep)
 

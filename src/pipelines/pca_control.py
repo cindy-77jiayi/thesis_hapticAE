@@ -1,4 +1,4 @@
-"""Steps 2–4: PCA dimensionality reduction, control-to-latent mapping, and sweep experiments."""
+"""PCA dimensionality reduction, control-to-latent mapping, and sweep experiments."""
 
 import pickle
 from pathlib import Path
@@ -8,6 +8,8 @@ import torch
 from sklearn.decomposition import PCA
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+
+from src.eval.signal_metrics import compute_all_metrics
 
 
 # ---------------------------------------------------------------------------
@@ -95,10 +97,10 @@ def control_to_latent(pipe: Pipeline, c: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Step 4: Single-axis sweep
+# Unified single-axis sweep
 # ---------------------------------------------------------------------------
 
-def single_axis_sweep(
+def sweep_axis(
     pipe: Pipeline,
     model,
     device: torch.device,
@@ -106,49 +108,58 @@ def single_axis_sweep(
     sweep_range: tuple[float, float] = (-2.0, 2.0),
     n_steps: int = 9,
     T: int = 4000,
+    sr: int = 8000,
+    reference: np.ndarray | None = None,
+    with_metrics: bool = False,
 ) -> dict:
-    """Sweep one PCA control axis while holding others at zero.
+    """Sweep one PCA control axis around a reference point.
 
     Args:
         pipe: Fitted PCA pipeline.
-        model: Trained VAE model (must have .decode() method).
+        model: Model with .decode() method.
         device: Torch device.
-        axis: Which PC axis to sweep (0-indexed, 0 = PC1).
+        axis: Which PC axis to sweep (0-indexed).
         sweep_range: (min, max) values for the swept axis.
         n_steps: Number of sweep steps.
         T: Signal length for decoder.
+        sr: Sample rate (used only when with_metrics=True).
+        reference: Base control vector; None → zeros.
+        with_metrics: If True, compute signal metrics at each step.
 
     Returns:
-        Dict with 'values' (sweep values), 'signals' (generated waveforms),
-        and 'latents' (corresponding latent vectors).
+        Dict with 'axis', 'values', 'signals', 'latents',
+        and optionally 'metrics' (list of metric dicts).
     """
     n_components = pipe.named_steps["pca"].n_components
     values = np.linspace(sweep_range[0], sweep_range[1], n_steps)
+    ref = reference if reference is not None else np.zeros(n_components, dtype=np.float32)
 
-    signals = []
-    latents = []
+    signals, latents, metrics_list = [], [], []
 
     model.eval()
     with torch.no_grad():
         for val in values:
-            c = np.zeros(n_components, dtype=np.float32)
+            c = ref.copy()
             c[axis] = val
 
             z_np = control_to_latent(pipe, c)
             z_t = torch.from_numpy(z_np).float().unsqueeze(0).to(device)
-
-            x_hat = model.decode(z_t, target_len=T)
-            sig = x_hat.squeeze().cpu().numpy()
+            sig = model.decode(z_t, target_len=T).squeeze().cpu().numpy()
 
             latents.append(z_np)
             signals.append(sig)
+            if with_metrics:
+                metrics_list.append(compute_all_metrics(sig, sr=sr))
 
-    return {
+    result = {
         "axis": axis,
-        "values": values,
-        "signals": np.stack(signals),    # (n_steps, T)
-        "latents": np.stack(latents),    # (n_steps, latent_dim)
+        "values": values if not with_metrics else values.tolist(),
+        "signals": np.stack(signals),
+        "latents": np.stack(latents),
     }
+    if with_metrics:
+        result["metrics"] = metrics_list
+    return result
 
 
 def plot_sweep(sweep_result: dict, sr: int = 8000, save_path: str | None = None):

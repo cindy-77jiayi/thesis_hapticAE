@@ -1,15 +1,12 @@
 """Build the frozen control specification: ranges, metric profiles, and labels."""
 
 import json
-import pickle
 from pathlib import Path
 
 import numpy as np
-import torch
 from sklearn.pipeline import Pipeline
 
-from src.pipelines.pca_control import control_to_latent
-from src.eval.signal_metrics import compute_all_metrics
+from src.pipelines.pca_control import sweep_axis
 
 
 METRIC_LABELS = {
@@ -68,47 +65,6 @@ def compute_control_ranges(
         })
     return ranges
 
-
-def sweep_with_metrics(
-    pipe: Pipeline,
-    model,
-    device: torch.device,
-    axis: int,
-    sweep_range: tuple[float, float],
-    n_steps: int = 11,
-    T: int = 4000,
-    sr: int = 8000,
-) -> dict:
-    """Sweep one PC axis and compute signal metrics at each step.
-
-    Returns dict with 'values', 'signals', 'metrics' (list of metric dicts).
-    """
-    n_components = pipe.named_steps["pca"].n_components
-    values = np.linspace(sweep_range[0], sweep_range[1], n_steps)
-
-    signals = []
-    metrics_list = []
-
-    model.eval()
-    with torch.no_grad():
-        for val in values:
-            c = np.zeros(n_components, dtype=np.float32)
-            c[axis] = val
-
-            z_np = control_to_latent(pipe, c)
-            z_t = torch.from_numpy(z_np).float().unsqueeze(0).to(device)
-            x_hat = model.decode(z_t, target_len=T)
-            sig = x_hat.squeeze().cpu().numpy()
-
-            signals.append(sig)
-            metrics_list.append(compute_all_metrics(sig, sr=sr))
-
-    return {
-        "axis": axis,
-        "values": values.tolist(),
-        "signals": np.stack(signals),
-        "metrics": metrics_list,
-    }
 
 
 def _trend_direction(values: list[float]) -> str:
@@ -174,12 +130,13 @@ def build_controls_spec(
     controls = []
     for i in range(n_components):
         r = ranges[i]
-        sweep = sweep_with_metrics(
+        sweep = sweep_axis(
             pipe, model, device,
             axis=i,
             sweep_range=(r["p5"], r["p95"]),
             n_steps=n_sweep_steps,
             T=T, sr=sr,
+            with_metrics=True,
         )
         dominant = identify_dominant_metrics(sweep)
 

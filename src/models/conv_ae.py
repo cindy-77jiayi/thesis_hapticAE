@@ -7,9 +7,7 @@ Used as reconstruction quality upper bound.
 import torch
 import torch.nn as nn
 
-
-def _group_norm(channels: int, num_groups: int = 8) -> nn.GroupNorm:
-    return nn.GroupNorm(num_groups=num_groups, num_channels=channels)
+from .common import make_activation, make_norm
 
 
 class ConvAE(nn.Module):
@@ -28,15 +26,14 @@ class ConvAE(nn.Module):
         kernel_size: int = 9,
         activation: str = "leaky_relu",
         norm: str = "group",
-        # kept for compatibility with old configs
-        use_batchnorm: bool = True,
+        use_batchnorm: bool = True,  # kept for old config compatibility
     ):
         super().__init__()
         self.T = T
         self.latent_dim = latent_dim
 
-        act_fn = nn.LeakyReLU(0.2) if activation == "leaky_relu" else nn.ReLU()
-        norm_fn = _group_norm if norm == "group" else nn.BatchNorm1d
+        act_fn = make_activation(activation)
+        norm_fn = make_norm(norm)
 
         # --- Encoder ---
         enc_layers = []

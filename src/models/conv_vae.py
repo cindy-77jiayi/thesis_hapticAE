@@ -3,9 +3,7 @@
 import torch
 import torch.nn as nn
 
-
-def _group_norm(channels: int, num_groups: int = 8) -> nn.GroupNorm:
-    return nn.GroupNorm(num_groups=num_groups, num_channels=channels)
+from .common import make_activation, make_norm
 
 
 class ConvVAE(nn.Module):
@@ -31,8 +29,8 @@ class ConvVAE(nn.Module):
         self.latent_dim = latent_dim
         self.logvar_clip = logvar_clip
 
-        act_fn = nn.LeakyReLU(0.2) if activation == "leaky_relu" else nn.ReLU()
-        norm_fn = _group_norm if norm == "group" else nn.BatchNorm1d
+        act_fn = make_activation(activation)
+        norm_fn = make_norm(norm)
 
         # --- Encoder ---
         enc_layers = []
@@ -43,7 +41,7 @@ class ConvVAE(nn.Module):
             enc_layers.extend([
                 nn.Conv1d(in_ch, out_ch, kernel_size=k, stride=2, padding=p),
                 norm_fn(out_ch),
-                act_fn if i < len(channels) - 1 else type(act_fn)(act_fn.negative_slope if hasattr(act_fn, 'negative_slope') else True),
+                type(act_fn)(act_fn.negative_slope if hasattr(act_fn, 'negative_slope') else True),
             ])
             in_ch = out_ch
         self.encoder = nn.Sequential(*enc_layers)

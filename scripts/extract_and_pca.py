@@ -25,7 +25,7 @@ from src.data.preprocessing import collect_clean_wavs, estimate_global_rms
 from src.data.dataset import HapticWavDataset
 from src.models.conv_vae import ConvVAE
 from src.pipelines.latent_extraction import extract_latent_vectors
-from src.pipelines.pca_control import fit_pca_pipeline, single_axis_sweep, plot_sweep
+from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis, plot_sweep
 
 
 def main():
@@ -99,7 +99,7 @@ def main():
         print("=" * 60)
         for ax in range(args.n_components):
             print(f"\n  Sweeping PC{ax+1}...")
-            result = single_axis_sweep(
+            result = sweep_axis(
                 pipe, model, device,
                 axis=ax, sweep_range=(-2.0, 2.0), n_steps=9,
                 T=data_cfg["T"],
