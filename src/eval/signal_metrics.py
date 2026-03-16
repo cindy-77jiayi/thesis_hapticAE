@@ -1,13 +1,17 @@
 """Quantitative signal metrics for characterizing haptic waveforms.
 
-Metrics are grouped by the perceptual dimension they target:
-  Intensity:   rms_energy, peak_amplitude
-  Sustain:     envelope_decay_slope, late_early_energy_ratio
-  Warmth:      spectral_centroid, low_high_band_ratio
-  Sharpness:   attack_time, high_freq_ratio, crest_factor
-  Rhythm:      onset_density, ioi_entropy
-  Continuity:  zero_crossing_rate, gap_ratio
-  Texture:     short_term_variance, am_modulation_index
+27 individual metrics organized into 7 perceptual groups.
+Each group has 1-2 *representative* metrics (used for compact validation)
+and additional *supporting* metrics (used for detailed analysis).
+
+Groups and representatives:
+  G1 Intensity:       rms_energy, crest_factor
+  G2 Spectral Shape:  spectral_centroid, spectral_flatness
+  G3 Temporal Envelope: envelope_decay_slope, envelope_entropy
+  G4 Attack/Transient: attack_time
+  G5 Rhythm:          onset_density, ioi_entropy
+  G6 Continuity:      gap_ratio
+  G7 Texture:         am_modulation_index, short_term_variance
 """
 
 import numpy as np
@@ -443,6 +447,78 @@ def modulation_spectrum_peak(x: np.ndarray, sr: int = 8000) -> float:
     mod_spec[0] = 0
     peak_idx = np.argmax(mod_spec)
     return float(mod_freqs[peak_idx])
+
+
+# ---------------------------------------------------------------------------
+# Metric Groups (7 groups, 12 representatives, 27 total)
+# ---------------------------------------------------------------------------
+
+METRIC_GROUPS: dict[str, dict] = {
+    "G1_Intensity": {
+        "label": "Intensity / Energy",
+        "description": "Overall signal strength and impulsiveness",
+        "representative": ["rms_energy", "crest_factor"],
+        "supporting": ["peak_amplitude", "envelope_area"],
+    },
+    "G2_SpectralShape": {
+        "label": "Spectral Shape",
+        "description": "Frequency distribution — bright vs dark, tonal vs noisy",
+        "representative": ["spectral_centroid_hz", "spectral_flatness"],
+        "supporting": [
+            "spectral_rolloff_hz", "spectral_slope",
+            "high_freq_ratio", "low_high_band_ratio",
+            "band_energy_0_150", "band_energy_150_400", "band_energy_400_800",
+            "zero_crossing_rate_ps",
+        ],
+    },
+    "G3_TemporalEnvelope": {
+        "label": "Temporal Envelope",
+        "description": "How the signal energy evolves over time — decay, sustain, complexity",
+        "representative": ["envelope_decay_slope_dBps", "envelope_entropy_bits"],
+        "supporting": [
+            "late_early_energy_ratio", "effective_duration_s",
+        ],
+    },
+    "G4_Attack": {
+        "label": "Attack / Transient",
+        "description": "Onset sharpness and initial transient energy",
+        "representative": ["attack_time_s"],
+        "supporting": ["transient_energy_ratio"],
+    },
+    "G5_Rhythm": {
+        "label": "Rhythm / Event Density",
+        "description": "Temporal event rate and regularity",
+        "representative": ["onset_density_ps", "ioi_entropy_bits"],
+        "supporting": ["onset_interval_cv", "modulation_peak_hz"],
+    },
+    "G6_Continuity": {
+        "label": "Continuity",
+        "description": "Proportion of silence/gaps in the signal",
+        "representative": ["gap_ratio"],
+        "supporting": [],
+    },
+    "G7_Texture": {
+        "label": "Texture / Modulation",
+        "description": "Amplitude modulation depth and temporal energy variation",
+        "representative": ["am_modulation_index", "short_term_variance"],
+        "supporting": [],
+    },
+}
+
+
+def get_representative_metric_names() -> list[str]:
+    """Return the 12 representative metric names across all 7 groups."""
+    names = []
+    for g in METRIC_GROUPS.values():
+        names.extend(g["representative"])
+    return names
+
+
+def compute_group_representatives(x: np.ndarray, sr: int = 8000) -> dict[str, float]:
+    """Compute only the 12 representative metrics (one pass, lighter than full 27)."""
+    reps = get_representative_metric_names()
+    all_m = compute_all_metrics(x, sr)
+    return {k: all_m[k] for k in reps}
 
 
 # ---------------------------------------------------------------------------

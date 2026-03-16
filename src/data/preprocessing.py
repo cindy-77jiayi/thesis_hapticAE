@@ -9,18 +9,32 @@ import librosa
 import numpy as np
 
 
-def collect_clean_wavs(root: str) -> list[str]:
+ACCEPTED_MODELS = {"HapticGen-Initial", "HapticGen"}
+
+
+def collect_clean_wavs(
+    root: str,
+    accepted_models: set[str] | None = None,
+) -> list[str]:
     """Discover WAV files that pass HapticGen quality filters.
 
-    Looks for .am1.json metadata files and selects WAVs where
-    model == 'HapticGen-Initial' and vote == 1.
+    Scans all subdirectories (expertvoted/, uservoted/, etc.) for .am1.json
+    metadata and selects WAVs where model is in accepted_models and vote == 1.
+
+    Args:
+        root: Root directory of the hapticgen-dataset repo.
+        accepted_models: Set of model names to accept.
+            Defaults to ACCEPTED_MODELS = {"HapticGen-Initial", "HapticGen"}.
     """
+    if accepted_models is None:
+        accepted_models = ACCEPTED_MODELS
+
     wavs = []
     for meta_path in glob.glob(os.path.join(root, "**/*.am1.json"), recursive=True):
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
 
-        if meta.get("model") == "HapticGen-Initial" and meta.get("vote") == 1:
+        if meta.get("model") in accepted_models and meta.get("vote") == 1:
             wav_path = os.path.join(os.path.dirname(meta_path), meta["filename"])
             if os.path.exists(wav_path):
                 wavs.append(wav_path)
