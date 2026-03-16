@@ -132,10 +132,11 @@ def main():
             "run_name": run_name,
             "explained_variance_ratio": evr,
             "mono": mono,
+            "components": pipe.named_steps["pca"].components_[:args.n_components],
         })
 
     # --- Compare ---
-    stability = compare_cross_seed(seed_results)
+    stability = compare_cross_seed(seed_results, align_components=True)
     print_cross_seed_report(stability)
 
     # --- Plot comparison ---

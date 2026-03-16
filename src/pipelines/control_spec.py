@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import torch
 from sklearn.pipeline import Pipeline
 
 from src.pipelines.pca_control import sweep_axis
@@ -119,6 +120,7 @@ def build_controls_spec(
     T: int = 4000,
     sr: int = 8000,
     n_sweep_steps: int = 11,
+    n_primary_controls: int = 4,
 ) -> dict:
     """Build the complete control specification with ranges and metric profiles.
 
@@ -140,9 +142,11 @@ def build_controls_spec(
         )
         dominant = identify_dominant_metrics(sweep)
 
+        tier = "Primary" if i < n_primary_controls else "Secondary"
         controls.append({
             "axis": i,
             "name": f"PC{i + 1}",
+            "semantic_tier": tier,
             "explained_variance_pct": round(float(explained_variance_ratio[i]) * 100, 2),
             "range": {"low": r["p5"], "high": r["p95"]},
             "default": 0.0,
@@ -192,8 +196,8 @@ def build_controls_table_md(spec: dict, pc_labels: dict[int, dict] | None = None
         "",
         "## Control Summary",
         "",
-        "| Control | Var% | Range (P5–P95) | Primary Effect | Direction |",
-        "|---------|------|----------------|---------------|-----------|",
+        "| Control | Tier | Var% | Range (P5–P95) | Primary Effect | Direction |",
+        "|---------|------|------|----------------|---------------|-----------|",
     ]
 
     for ctrl in spec["controls"]:
@@ -209,7 +213,7 @@ def build_controls_table_md(spec: dict, pc_labels: dict[int, dict] | None = None
             label = metric_name
 
         lines.append(
-            f"| {ctrl['name']} | {ctrl['explained_variance_pct']:.1f} | "
+            f"| {ctrl['name']} | {ctrl.get('semantic_tier', 'Primary')} | {ctrl['explained_variance_pct']:.1f} | "
             f"[{r['low']:+.2f}, {r['high']:+.2f}] | "
             f"{label} | {direction} |"
         )
@@ -220,7 +224,7 @@ def build_controls_table_md(spec: dict, pc_labels: dict[int, dict] | None = None
 
     for ctrl in spec["controls"]:
         ax = ctrl["axis"]
-        lines.append(f"### {ctrl['name']} — {ctrl['explained_variance_pct']:.1f}% variance")
+        lines.append(f"### {ctrl['name']} ({ctrl.get('semantic_tier', 'Primary')}) — {ctrl['explained_variance_pct']:.1f}% variance")
 
         if pc_labels and ax in pc_labels:
             lbl = pc_labels[ax]

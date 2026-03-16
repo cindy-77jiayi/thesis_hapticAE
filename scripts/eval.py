@@ -20,7 +20,7 @@ from src.data.preprocessing import collect_clean_wavs, estimate_global_rms
 from src.data.dataset import HapticWavDataset
 from src.models.conv_vae import ConvVAE
 from src.models.conv_ae import ConvAE
-from src.eval.evaluate import evaluate_reconstruction, print_metrics
+from src.eval.evaluate import evaluate_reconstruction, print_metrics, save_reconstruction_master_table
 from src.eval.visualize import plot_loss_curves, plot_waveform_comparison
 
 
@@ -88,6 +88,12 @@ def main():
     # --- Evaluate ---
     result = evaluate_reconstruction(model, val_loader, device, n_samples=args.n_samples, is_vae=is_vae)
     print_metrics(result)
+
+    table_paths = save_reconstruction_master_table(result, args.output_dir)
+    print("\n📋 Reconstruction master table:")
+    print(f"  - {table_paths['md']}")
+    print(f"  - {table_paths['csv']}")
+    print(f"  - {table_paths['json']}")
 
     # --- Plots ---
     plot_waveform_comparison(

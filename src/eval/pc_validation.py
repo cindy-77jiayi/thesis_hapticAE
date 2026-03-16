@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 
 import numpy as np
+from scipy.linalg import orthogonal_procrustes
+from scipy.optimize import linear_sum_assignment
 from scipy.stats import spearmanr
 
 
@@ -296,32 +298,73 @@ def plot_selectivity_bar(cross: dict, save_path: str | None = None):
 # 5. Cross-seed stability comparison
 # ---------------------------------------------------------------------------
 
-def compare_cross_seed(seed_results: list[dict]) -> dict:
+def _align_to_reference(C_ref: np.ndarray, C_seed: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return permutation/sign to align seed PCs to reference PCs."""
+    R, _ = orthogonal_procrustes(C_seed, C_ref)
+    C_seed_aligned = C_seed @ R
+    signed_cos = C_ref @ C_seed_aligned.T
+    abs_cos = np.abs(signed_cos)
+
+    row_ind, col_ind = linear_sum_assignment(-abs_cos)
+    order = np.argsort(row_ind)
+    col_ind = col_ind[order]
+
+    signs = np.sign(signed_cos[row_ind[order], col_ind])
+    signs[signs == 0] = 1
+    return col_ind.astype(int), signs.astype(float)
+
+
+def compare_cross_seed(seed_results: list[dict], align_components: bool = False) -> dict:
     """Compare PCA results across different training seeds.
 
-    Args:
-        seed_results: list of dicts, each with:
-            'seed': int
-            'explained_variance_ratio': np.ndarray (n_components,)
-            'mono': output of compute_monotonicity_matrix()
-
-    Returns:
-        dict with stability metrics.
+    If align_components=True and each seed_result contains 'components',
+    cross-seed sign agreement is computed after Procrustes+Hungarian alignment.
     """
     n_seeds = len(seed_results)
     n_pcs = len(seed_results[0]["explained_variance_ratio"])
-
-    evrs = np.array([sr["explained_variance_ratio"] for sr in seed_results])
-    evr_mean = evrs.mean(axis=0)
-    evr_std = evrs.std(axis=0)
-
     metric_names = seed_results[0]["mono"]["metric_names"]
     n_metrics = len(metric_names)
+
+    aligned_evrs = []
+    aligned_rhos = []
+    alignment_mappings = []
+
+    ref = seed_results[0]
+    C_ref = ref.get("components")
+
+    for idx, sr in enumerate(seed_results):
+        evr = np.array(sr["explained_variance_ratio"], dtype=float)
+        rho = np.array(sr["mono"]["rho"], dtype=float)
+
+        if align_components and C_ref is not None and sr.get("components") is not None:
+            if idx == 0:
+                perm = np.arange(n_pcs)
+                signs = np.ones(n_pcs, dtype=float)
+            else:
+                perm, signs = _align_to_reference(C_ref, np.array(sr["components"], dtype=float))
+            evr = evr[perm]
+            rho = rho[perm, :]
+            rho = rho * signs[:, None]
+        else:
+            perm = np.arange(n_pcs)
+            signs = np.ones(n_pcs, dtype=float)
+
+        aligned_evrs.append(evr)
+        aligned_rhos.append(rho)
+        alignment_mappings.append({
+            "seed": sr["seed"],
+            "perm": perm.tolist(),
+            "sign": signs.tolist(),
+        })
+
+    evrs = np.array(aligned_evrs)
+    evr_mean = evrs.mean(axis=0)
+    evr_std = evrs.std(axis=0)
 
     sign_agreement = np.zeros((n_pcs, n_metrics))
     for mi in range(n_metrics):
         for pi in range(n_pcs):
-            signs = [np.sign(sr["mono"]["rho"][pi, mi]) for sr in seed_results]
+            signs = [np.sign(rho[pi, mi]) for rho in aligned_rhos]
             if all(s == signs[0] for s in signs) and signs[0] != 0:
                 sign_agreement[pi, mi] = 1.0
             elif sum(s == signs[0] for s in signs) >= n_seeds - 1:
@@ -335,6 +378,8 @@ def compare_cross_seed(seed_results: list[dict]) -> dict:
         "sign_agreement": sign_agreement,
         "metric_names": metric_names,
         "pc_names": [f"PC{i+1}" for i in range(n_pcs)],
+        "aligned": bool(align_components and C_ref is not None),
+        "alignment_mappings": alignment_mappings,
     }
 
 
@@ -342,6 +387,8 @@ def print_cross_seed_report(stability: dict):
     """Print cross-seed stability report."""
     print("\n" + "=" * 70)
     print(f"CROSS-SEED STABILITY ({stability['n_seeds']} seeds: {stability['seeds']})")
+    if stability.get('aligned'):
+        print("Alignment: Procrustes + Hungarian applied before sign comparison")
     print("=" * 70)
 
     print("\nExplained variance ratio (mean ± std):")

@@ -50,6 +50,8 @@ def main():
     parser.add_argument("--n_components", type=int, default=8)
     parser.add_argument("--n_sweep_steps", type=int, default=11,
                         help="Number of steps per sweep (default: 11)")
+    parser.add_argument("--n_primary_controls", type=int, default=4,
+                        help="Number of PCs marked as Primary tier (default: 4)")
     parser.add_argument("--pca_dir", type=str, default=None,
                         help="If provided, load existing PCA from this dir instead of re-fitting")
     args = parser.parse_args()
@@ -125,6 +127,7 @@ def main():
         pipe, model, device, Z_pca, evr,
         T=data_cfg["T"], sr=data_cfg["sr"],
         n_sweep_steps=args.n_sweep_steps,
+        n_primary_controls=args.n_primary_controls,
     )
     save_controls_spec(spec, os.path.join(args.output_dir, "controls_spec.json"))
 

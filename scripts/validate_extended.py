@@ -28,6 +28,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
 import torch
+from scipy.linalg import orthogonal_procrustes
+from scipy.optimize import linear_sum_assignment
 from scipy.stats import spearmanr
 from torch.utils.data import DataLoader
 
@@ -179,7 +181,7 @@ def compare_references(sweep_origin, sweep_mean, metric_names):
 # ===================================================================
 
 def compute_pca_axis_alignment(seed_pipes, n_components=8):
-    """Compute cosine similarity between PCA components across seeds."""
+    """Compute axis alignment using Procrustes + Hungarian one-to-one matching."""
     seeds = list(seed_pipes.keys())
     n_seeds = len(seeds)
 
@@ -196,26 +198,40 @@ def compute_pca_axis_alignment(seed_pipes, n_components=8):
             s1, s2 = seeds[i], seeds[j]
             C1, C2 = components[s1], components[s2]
 
-            cos_sim = np.abs(C1 @ C2.T)
-            best_match = np.max(cos_sim, axis=1)
-            best_idx = np.argmax(cos_sim, axis=1)
+            R, _ = orthogonal_procrustes(C2, C1)
+            C2_aligned = C2 @ R
+            signed_cos = C1 @ C2_aligned.T
+            abs_cos = np.abs(signed_cos)
+
+            row_ind, col_ind = linear_sum_assignment(-abs_cos)
+            order = np.argsort(row_ind)
+            row_ind, col_ind = row_ind[order], col_ind[order]
+
+            matched = abs_cos[row_ind, col_ind]
+            signs = np.sign(signed_cos[row_ind, col_ind])
 
             pair_alignments[f"{s1}_vs_{s2}"] = {
-                "cosine_similarity_matrix": cos_sim.tolist(),
-                "best_match_per_pc": [
-                    {"pc": f"PC{k+1}", "best_match": f"PC{best_idx[k]+1}",
-                     "cosine_sim": round(float(best_match[k]), 4)}
-                    for k in range(n_components)
+                "cosine_similarity_matrix": abs_cos.tolist(),
+                "matching": [
+                    {
+                        "pc_ref": f"PC{int(r)+1}",
+                        "pc_other": f"PC{int(c)+1}",
+                        "cosine_sim": round(float(abs_cos[r, c]), 4),
+                        "sign": int(signs[k]) if signs[k] != 0 else 1,
+                    }
+                    for k, (r, c) in enumerate(zip(row_ind, col_ind))
                 ],
-                "mean_alignment": round(float(np.mean(best_match)), 4),
+                "mean_alignment": round(float(np.mean(matched)), 4),
             }
 
-    per_pc_avg = []
-    for k in range(n_components):
-        sims = []
-        for pair, data in pair_alignments.items():
-            sims.append(data["best_match_per_pc"][k]["cosine_sim"])
-        per_pc_avg.append(round(float(np.mean(sims)), 4))
+    per_pc_acc = {k: [] for k in range(n_components)}
+    for data in pair_alignments.values():
+        for m in data["matching"]:
+            pc_idx = int(m["pc_ref"].replace("PC", "")) - 1
+            per_pc_acc[pc_idx].append(m["cosine_sim"])
+
+    per_pc_avg = [round(float(np.mean(per_pc_acc[k])) if per_pc_acc[k] else 0.0, 4)
+                  for k in range(n_components)]
 
     return {
         "seeds": seeds,
@@ -223,6 +239,7 @@ def compute_pca_axis_alignment(seed_pipes, n_components=8):
         "per_pc_avg_alignment": per_pc_avg,
         "overall_mean_alignment": round(float(np.mean(per_pc_avg)), 4),
         "evr_per_seed": {s: [round(float(v), 4) for v in evrs[s]] for s in seeds},
+        "method": "orthogonal_procrustes + hungarian",
     }
 
 
@@ -296,8 +313,8 @@ def generate_table_v2(bindings, alignment, evr, ref_comparison, save_path):
     lines.extend([
         "## Control Specification",
         "",
-        "| Control | Var% | Primary Metrics (ρ) | Semantic Interpretation | Example Effect |",
-        "|---------|------|---------------------|------------------------|----------------|",
+        "| Control | Tier | Var% | Primary Metrics (ρ) | Semantic Interpretation | Example Effect |",
+        "|---------|------|------|---------------------|------------------------|----------------|",
     ])
 
     for pi, pc in enumerate(pc_names):
@@ -312,7 +329,8 @@ def generate_table_v2(bindings, alignment, evr, ref_comparison, save_path):
         label = _auto_label(top)
         effect = _auto_effect(top)
 
-        lines.append(f"| {pc} | {var_pct} | {metrics_str} | {label} | {effect} |")
+        tier = "Primary" if pi < 4 else "Secondary"
+        lines.append(f"| {pc} | {tier} | {var_pct} | {metrics_str} | {label} | {effect} |")
 
     lines.extend(["", "## Detailed Metric Bindings", ""])
 

@@ -22,6 +22,7 @@ thesis/
 │   ├── eval.py             # Standalone evaluation
 │   ├── extract_and_pca.py  # Latent extraction + PCA fitting
 │   ├── build_controls.py   # Control spec, sweep gallery, table
+│   ├── generate_from_controls.py # 8 knobs -> one generated haptic waveform
 │   ├── validate_extended.py # Full validation (27 metrics, dual-reference, PCA alignment)
 │   └── cross_seed_stability.py  # Cross-seed PCA stability comparison
 │
@@ -79,6 +80,21 @@ python scripts/validate_extended.py --config configs/vae_balanced.yaml --data_di
     --seed_output_base outputs
 ```
 
+### Generate from 8 controls
+
+```bash
+python scripts/generate_from_controls.py \
+    --config configs/vae_balanced.yaml \
+    --checkpoint outputs/vae_balanced/best_model.pt \
+    --pca_dir outputs/pca \
+    --controls_dir outputs/controls \
+    --values 0.8,-0.3,0.2,0,0,0,0,0 \
+    --output_dir outputs/generated \
+    --name demo_pc
+```
+
+This exports `demo_pc.wav`, `demo_pc.npy`, and `demo_pc_meta.json`. By default, each control value is clamped to the learned P5-P95 safe range from `controls_spec.json`.
+
 ## Model Architectures
 
 | Model | Type | Latent Dim | Channels | Description |
@@ -91,7 +107,8 @@ python scripts/validate_extended.py --config configs/vae_balanced.yaml --data_di
 1. **VAE Training** → latent space (24D)
 2. **PCA** → 8 interpretable control dimensions (~59% variance)
 3. **Sweep analysis** → quantify what each PC controls
-4. **Validation** → Spearman ρ monotonicity, orthogonality, effect sizes, cross-seed stability
+4. **Tiering** → fixed semantic tiers (PC1–PC4 Primary, PC5–PC8 Secondary)
+5. **Validation** → Spearman ρ monotonicity, orthogonality, effect sizes, cross-seed stability
 
 ### Signal Metrics (27 total)
 
