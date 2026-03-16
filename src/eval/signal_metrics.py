@@ -41,6 +41,25 @@ def _frame_rms(x: np.ndarray, sr: int, frame_div: int = 100) -> np.ndarray:
     ])
 
 
+def _onset_indices(
+    x: np.ndarray,
+    sr: int,
+    threshold_factor: float = 2.0,
+) -> np.ndarray:
+    """Detect onset frame indices from short-term RMS energy."""
+    frame_energy = _frame_rms(x, sr)
+    if len(frame_energy) < 3:
+        return np.array([], dtype=int)
+
+    mean_e = np.mean(frame_energy)
+    if mean_e < 1e-10:
+        return np.array([], dtype=int)
+
+    threshold = mean_e * threshold_factor
+    above = frame_energy > threshold
+    return np.where(np.diff(above.astype(int)) == 1)[0]
+
+
 # ---------------------------------------------------------------------------
 # Intensity
 # ---------------------------------------------------------------------------
@@ -161,18 +180,7 @@ def crest_factor(x: np.ndarray) -> float:
 
 def onset_density(x: np.ndarray, sr: int = 8000, threshold_factor: float = 2.0) -> float:
     """Number of amplitude onsets per second."""
-    frame_energy = _frame_rms(x, sr)
-
-    if len(frame_energy) < 3:
-        return 0.0
-
-    mean_e = np.mean(frame_energy)
-    if mean_e < 1e-10:
-        return 0.0
-
-    threshold = mean_e * threshold_factor
-    above = frame_energy > threshold
-    onsets = np.sum(np.diff(above.astype(int)) == 1)
+    onsets = len(_onset_indices(x, sr, threshold_factor))
     duration_s = len(x) / sr
     return float(onsets / duration_s) if duration_s > 0 else 0.0
 
@@ -182,18 +190,7 @@ def ioi_entropy(x: np.ndarray, sr: int = 8000, threshold_factor: float = 2.0) ->
 
     Higher = more irregular/complex rhythm. 0 = perfectly periodic.
     """
-    frame_energy = _frame_rms(x, sr)
-
-    if len(frame_energy) < 3:
-        return 0.0
-
-    mean_e = np.mean(frame_energy)
-    if mean_e < 1e-10:
-        return 0.0
-
-    threshold = mean_e * threshold_factor
-    above = frame_energy > threshold
-    onset_idx = np.where(np.diff(above.astype(int)) == 1)[0]
+    onset_idx = _onset_indices(x, sr, threshold_factor)
 
     if len(onset_idx) < 2:
         return 0.0
@@ -377,17 +374,7 @@ def onset_interval_cv(x: np.ndarray, sr: int = 8000,
 
     0 = perfectly regular. Higher = more irregular timing.
     """
-    frame_energy = _frame_rms(x, sr)
-
-    if len(frame_energy) < 3:
-        return 0.0
-    mean_e = np.mean(frame_energy)
-    if mean_e < 1e-10:
-        return 0.0
-
-    threshold = mean_e * threshold_factor
-    above = frame_energy > threshold
-    onset_idx = np.where(np.diff(above.astype(int)) == 1)[0]
+    onset_idx = _onset_indices(x, sr, threshold_factor)
 
     if len(onset_idx) < 3:
         return 0.0

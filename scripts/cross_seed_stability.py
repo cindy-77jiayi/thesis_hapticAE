@@ -20,9 +20,10 @@ Usage (run 3 times with different configs, then compare):
 import argparse
 import json
 import os
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from _bootstrap import add_project_root
+
+add_project_root()
 
 import numpy as np
 import torch

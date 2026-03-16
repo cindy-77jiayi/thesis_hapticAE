@@ -5,10 +5,9 @@ Usage:
 """
 
 import argparse
-import sys
-import os
+from _bootstrap import add_project_root
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+add_project_root()
 
 import torch
 

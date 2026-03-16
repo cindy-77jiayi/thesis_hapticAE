@@ -7,7 +7,7 @@ Used as reconstruction quality upper bound.
 import torch
 import torch.nn as nn
 
-from .common import make_activation, make_norm
+from .common import clone_activation, make_activation, make_norm
 
 
 class ConvAE(nn.Module):
@@ -44,7 +44,7 @@ class ConvAE(nn.Module):
             enc_layers.extend([
                 nn.Conv1d(in_ch, out_ch, kernel_size=k, stride=2, padding=p),
                 norm_fn(out_ch),
-                type(act_fn)(act_fn.negative_slope if hasattr(act_fn, 'negative_slope') else True),
+                clone_activation(act_fn),
             ])
             in_ch = out_ch
         self.encoder = nn.Sequential(*enc_layers)
@@ -68,7 +68,7 @@ class ConvAE(nn.Module):
             dec_layers.append(nn.Conv1d(in_ch, out_ch, kernel_size=kernel_size, padding=kernel_size // 2))
             if out_ch > 1:
                 dec_layers.append(norm_fn(out_ch))
-                dec_layers.append(type(act_fn)(act_fn.negative_slope if hasattr(act_fn, 'negative_slope') else True))
+                dec_layers.append(clone_activation(act_fn))
         self.decoder = nn.Sequential(*dec_layers)
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:

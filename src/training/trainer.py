@@ -108,7 +108,6 @@ class Trainer:
             recon = recon + self.w_fft * fft_mag_mse(x_hat, x)
 
         loss = recon
-        kl_val = 0.0
 
         if self.is_vae and mu is not None:
             kl = kl_divergence_free_bits(mu, logvar, free_bits=self.free_bits)
@@ -119,9 +118,7 @@ class Trainer:
                 beta_max=self.beta_max,
             )
             loss = recon + beta * kl
-            kl_val = kl.detach().item()
-
-        return loss, recon.detach().item(), kl_val
+        return loss
 
     def _run_epoch(self, loader: DataLoader, train: bool, epoch: int) -> float:
         self.model.train(train)
@@ -136,7 +133,7 @@ class Trainer:
             if train:
                 self.optimizer.zero_grad(set_to_none=True)
 
-            loss, recon, kl_val = self._compute_loss(x, epoch)
+            loss = self._compute_loss(x, epoch)
 
             if not torch.isfinite(loss):
                 continue
