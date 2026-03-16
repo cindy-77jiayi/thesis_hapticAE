@@ -9,7 +9,7 @@ import librosa
 import numpy as np
 
 
-ACCEPTED_MODELS = {"HapticGen-Initial", "HapticGen"}
+ACCEPTED_MODELS = {"HapticGen"}
 
 
 def collect_clean_wavs(
@@ -24,7 +24,7 @@ def collect_clean_wavs(
     Args:
         root: Root directory of the hapticgen-dataset repo.
         accepted_models: Set of model names to accept.
-            Defaults to ACCEPTED_MODELS = {"HapticGen-Initial", "HapticGen"}.
+            Defaults to ACCEPTED_MODELS = {"HapticGen"} (fine-tuned model only).
     """
     if accepted_models is None:
         accepted_models = ACCEPTED_MODELS
