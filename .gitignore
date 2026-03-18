@@ -1,6 +1,9 @@
-# Data (too large for GitHub) - only root-level data/ folder
-/data/
+# Large external datasets (not tracked)
 hapticgen-dataset/
+
+# Keep data/actions/ schema and test data, ignore everything else in data/
+/data/*
+!/data/actions/
 
 # Third-party repos
 HapticGen/

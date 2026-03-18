@@ -1,0 +1,90 @@
+{
+  "version": "mvp_v1",
+  "description": "Semantic attribute to PCA control mapping for haptic generation MVP.",
+  "attributes": [
+    {
+      "name": "energy_roughness",
+      "description": "Stronger / rougher / more intense tactile feel.",
+      "range": [
+        0.0,
+        1.0
+      ],
+      "default": 0.5,
+      "mapped_pc": "PC1",
+      "pc_index": 0,
+      "pc_range": [
+        -2.54,
+        4.9
+      ]
+    },
+    {
+      "name": "temporal_irregularity",
+      "description": "More irregular / jittery / less uniform timing structure.",
+      "range": [
+        0.0,
+        1.0
+      ],
+      "default": 0.5,
+      "mapped_pc": "PC2",
+      "pc_index": 1,
+      "pc_range": [
+        -2.21,
+        2.29
+      ]
+    },
+    {
+      "name": "modulation_texture",
+      "description": "More modulated / textured / vibration-rich internal oscillation.",
+      "range": [
+        0.0,
+        1.0
+      ],
+      "default": 0.5,
+      "mapped_pc": "PC3",
+      "pc_index": 2,
+      "pc_range": [
+        -1.92,
+        1.8
+      ]
+    },
+    {
+      "name": "decay_envelope",
+      "description": "Longer / more sustained / more lingering envelope.",
+      "range": [
+        0.0,
+        1.0
+      ],
+      "default": 0.5,
+      "mapped_pc": "PC4",
+      "pc_index": 3,
+      "pc_range": [
+        -1.7,
+        1.86
+      ]
+    }
+  ],
+  "defaults": {
+    "attributes": {
+      "energy_roughness": 0.5,
+      "temporal_irregularity": 0.5,
+      "modulation_texture": 0.5,
+      "decay_envelope": 0.5
+    },
+    "pc_vector": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixed_tail_pcs": {
+      "PC5": 0.0,
+      "PC6": 0.0,
+      "PC7": 0.0,
+      "PC8": 0.0
+    }
+  }
+}

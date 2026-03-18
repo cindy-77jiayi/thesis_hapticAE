@@ -1,0 +1,112 @@
+{
+  "version": "mvp_action_dataset_v1",
+  "description": "Example dataset schema for UI action-to-haptic semantic prediction.",
+  "directory_layout": {
+    "root": "data/actions/",
+    "action_folder_pattern": "action_###/",
+    "required_files": [
+      "before.png",
+      "during.png",
+      "after.png",
+      "metadata.json"
+    ]
+  },
+  "metadata_schema": {
+    "action_name": "string",
+    "action_type": "string",
+    "context": "string",
+    "notes": "string"
+  },
+  "example_actions": [
+    {
+      "id": "action_001",
+      "metadata": {
+        "action_name": "confirm_button_press",
+        "action_type": "success_confirmation",
+        "context": "The user presses a primary confirmation button and receives a successful completion state.",
+        "notes": "Decisive, solid, positive feedback."
+      }
+    },
+    {
+      "id": "action_002",
+      "metadata": {
+        "action_name": "cancel_button_press",
+        "action_type": "cancel_action",
+        "context": "The user cancels an operation and returns to the previous screen.",
+        "notes": "Light and unobtrusive, avoid alarm-like feel."
+      }
+    },
+    {
+      "id": "action_003",
+      "metadata": {
+        "action_name": "toggle_switch_on",
+        "action_type": "toggle_on",
+        "context": "A settings toggle moves from off to on.",
+        "notes": "Short, clean, mildly affirmative click."
+      }
+    },
+    {
+      "id": "action_004",
+      "metadata": {
+        "action_name": "toggle_switch_off",
+        "action_type": "toggle_off",
+        "context": "A settings toggle moves from on to off.",
+        "notes": "Short, slightly softer than toggle on."
+      }
+    },
+    {
+      "id": "action_005",
+      "metadata": {
+        "action_name": "slider_drag",
+        "action_type": "slider_drag",
+        "context": "User drags a continuous slider to adjust a value.",
+        "notes": "Continuous texture, moderate modulation."
+      }
+    },
+    {
+      "id": "action_006",
+      "metadata": {
+        "action_name": "success_state_banner",
+        "action_type": "success_state",
+        "context": "A success banner appears after task completion.",
+        "notes": "Positive and stable, not jittery."
+      }
+    },
+    {
+      "id": "action_007",
+      "metadata": {
+        "action_name": "warning_toast",
+        "action_type": "warning_alert",
+        "context": "A warning toast appears for a risky but recoverable condition.",
+        "notes": "Noticeable urgency with controlled irregularity."
+      }
+    },
+    {
+      "id": "action_008",
+      "metadata": {
+        "action_name": "error_dialog",
+        "action_type": "error_alert",
+        "context": "An error dialog appears and blocks progress until action is taken.",
+        "notes": "Strong, rough, attention-grabbing cue."
+      }
+    },
+    {
+      "id": "action_009",
+      "metadata": {
+        "action_name": "long_press_trigger",
+        "action_type": "long_press",
+        "context": "User performs a long press to trigger a secondary action.",
+        "notes": "Build-up then release, longer envelope."
+      }
+    },
+    {
+      "id": "action_010",
+      "metadata": {
+        "action_name": "selection_change",
+        "action_type": "selection_change",
+        "context": "User changes selected item in a list/grid.",
+        "notes": "Light but clear state transition cue."
+      }
+    }
+  ]
+}

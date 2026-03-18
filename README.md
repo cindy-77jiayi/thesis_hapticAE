@@ -32,6 +32,21 @@ thesis/
 │   ├── vae_balanced_s123.yaml / s456.yaml  # Cross-seed variants
 │   └── ae_matched.yaml     # Deterministic AE (same architecture, no KL)
 │
+├── controls/               # Semantic → PC mapping
+│   ├── control_schema.json # Machine-readable attribute-to-PC spec
+│   └── mapping.py          # Attribute validation & linear mapping
+│
+├── baseline/               # Rule-based haptic presets
+│   └── rule_based_controls.py  # Action-type → attribute defaults
+│
+├── llm/                    # LLM prompt assets
+│   └── prompt_template.md  # Multimodal prompt for attribute prediction
+│
+├── data/actions/            # Action dataset (frames + metadata)
+│   └── example_action_dataset_schema.json
+│
+├── run_llm_to_haptic.py    # MVP: action → attributes → PC vector → haptic
+│
 ├── colab/
 │   └── train_colab.ipynb   # End-to-end Colab pipeline
 │
@@ -103,6 +118,53 @@ python scripts/validate_extended.py --config configs/vae_balanced.yaml --data_di
 | Rhythm | Onset density, IOI entropy, onset interval CV, modulation peak |
 | Continuity | Zero-crossing rate, gap ratio |
 | Texture | Short-term variance, AM modulation index |
+
+## MVP: LLM-to-Haptic Pipeline
+
+Semantic attribute prediction from UI actions, mapped to haptic signals via the trained VAE+PCA.
+
+```
+UI Action (frames + context) → LLM → 4 Semantic Attributes → 8D PC Vector → Haptic Waveform
+```
+
+### Quick Run (rule-based, no LLM needed)
+
+```bash
+python run_llm_to_haptic.py \
+    --action_dir data/actions/action_001 \
+    --output_dir outputs/llm_mvp \
+    --use_rule_based
+```
+
+### With LLM Output
+
+```bash
+python run_llm_to_haptic.py \
+    --action_dir data/actions/action_001 \
+    --output_dir outputs/llm_mvp \
+    --llm_output_path path/to/llm_response.json
+```
+
+### With Full Decoder (generates waveform)
+
+```bash
+python run_llm_to_haptic.py \
+    --action_dir data/actions/action_001 \
+    --output_dir outputs/llm_mvp \
+    --llm_output_path path/to/llm_response.json \
+    --config configs/vae_balanced.yaml \
+    --checkpoint outputs/vae_balanced/best_model.pt \
+    --pca_dir outputs/pca
+```
+
+### Semantic Attributes (4)
+
+| Attribute | Maps to | Description |
+|-----------|---------|-------------|
+| `energy_roughness` | PC1 | Stronger / rougher / more intense |
+| `temporal_irregularity` | PC2 | More irregular / jittery timing |
+| `modulation_texture` | PC3 | More modulated / textured vibration |
+| `decay_envelope` | PC4 | Longer / more sustained envelope |
 
 ## Loss Components (VAE)
 

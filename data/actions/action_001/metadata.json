@@ -1,0 +1,6 @@
+{
+  "action_name": "confirm_button_press",
+  "action_type": "success_confirmation",
+  "context": "The user presses a primary confirmation button and receives a successful completion state.",
+  "notes": "Decisive, solid, positive feedback."
+}
