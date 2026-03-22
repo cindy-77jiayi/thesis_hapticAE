@@ -1,0 +1,57 @@
+# VAE config tuned to improve latent concentration for PCA while keeping
+# reconstruction quality stable.
+#
+# Key changes vs vae_balanced:
+# - KL schedule: monotonic warmup (less latent "re-spreading" than cyclical)
+# - lower free_bits: allows unused dims to stay quiet
+# - higher beta_max: encourages compact latent geometry
+
+seed: 42
+model_type: vae
+run_name: vae_pca_friendly
+
+data:
+  sr: 8000
+  T: 4000
+  scale: 0.25
+  use_minmax: false
+  train_split: 0.8
+
+model:
+  latent_dim: 24
+  channels: [32, 64, 128, 128]
+  first_kernel: 25
+  kernel_size: 9
+  activation: leaky_relu
+  norm: group
+  logvar_clip: [-10.0, 10.0]
+
+training:
+  batch_size: 32
+  epochs: 220
+  patience: 35
+  min_delta: 0.0001
+  early_stop_start: 25
+  grad_clip: 1.0
+  print_every: 10
+
+optimizer:
+  lr: 0.0002
+  weight_decay: 0.00001
+
+scheduler:
+  factor: 0.5
+  patience: 20
+
+loss:
+  l1_weight: 0.2
+  spectral_weight: 0.15
+  amplitude_weight: 0.5
+  clamp_range: 3.0
+
+kl:
+  free_bits: 0.08
+  beta_max: 0.01
+  schedule: monotonic
+  beta_start: 0.0
+  warmup_epochs: 60
