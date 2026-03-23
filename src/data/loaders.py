@@ -31,7 +31,17 @@ def build_dataloaders(
     data_cfg = config["data"]
     bs = batch_size or config.get("training", {}).get("batch_size", 32)
 
-    wav_files = collect_clean_wavs(data_dir)
+    accepted_models = set(data_cfg.get("accepted_models", ["HapticGen"]))
+    accepted_votes = set(data_cfg.get("accepted_votes", [1]))
+    include_subdirs_cfg = data_cfg.get("include_subdirs")
+    include_subdirs = set(include_subdirs_cfg) if include_subdirs_cfg else None
+
+    wav_files = collect_clean_wavs(
+        data_dir,
+        accepted_models=accepted_models,
+        accepted_votes=accepted_votes,
+        include_subdirs=include_subdirs,
+    )
     assert len(wav_files) > 0, f"No WAV files found in {data_dir}"
 
     N = len(wav_files)

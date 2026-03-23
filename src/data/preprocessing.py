@@ -15,6 +15,8 @@ ACCEPTED_MODELS = {"HapticGen"}
 def collect_clean_wavs(
     root: str,
     accepted_models: set[str] | None = None,
+    accepted_votes: set[int] | None = None,
+    include_subdirs: set[str] | None = None,
 ) -> list[str]:
     """Discover WAV files that pass HapticGen quality filters.
 
@@ -25,16 +27,29 @@ def collect_clean_wavs(
         root: Root directory of the hapticgen-dataset repo.
         accepted_models: Set of model names to accept.
             Defaults to ACCEPTED_MODELS = {"HapticGen"} (fine-tuned model only).
+        accepted_votes: Set of vote labels to accept.
+            Defaults to {1}.
+        include_subdirs: Optional subset of first-level dataset subdirs
+            (e.g., {"expertvoted"}, {"uservoted"}). If None, scan all.
     """
     if accepted_models is None:
         accepted_models = ACCEPTED_MODELS
+    if accepted_votes is None:
+        accepted_votes = {1}
+    if include_subdirs is not None:
+        include_subdirs = {s.lower() for s in include_subdirs}
 
     wavs = []
     for meta_path in glob.glob(os.path.join(root, "**/*.am1.json"), recursive=True):
+        rel = os.path.relpath(meta_path, root)
+        first = rel.split(os.sep, 1)[0].lower()
+        if include_subdirs is not None and first not in include_subdirs:
+            continue
+
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
 
-        if meta.get("model") in accepted_models and meta.get("vote") == 1:
+        if meta.get("model") in accepted_models and meta.get("vote") in accepted_votes:
             wav_path = os.path.join(os.path.dirname(meta_path), meta["filename"])
             if os.path.exists(wav_path):
                 wavs.append(wav_path)
@@ -123,5 +138,4 @@ def load_segment_energy(
         seg = minmax_norm(seg)
 
     return seg.astype(np.float32)
-
 
