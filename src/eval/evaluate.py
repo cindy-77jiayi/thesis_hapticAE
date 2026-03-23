@@ -53,8 +53,13 @@ def evaluate_reconstruction(
     n_samples: int = 10,
     is_vae: bool = True,
     sr: int = 8000,
+    clamp_range: float | None = 3.0,
 ) -> dict:
     """Run model on a batch from the loader and compute quality metrics.
+
+    Args:
+        clamp_range: If set, clip reconstructed output to [-clamp_range, clamp_range]
+            before metric computation. Use None to disable clipping.
 
     Returns dict with original/reconstructed arrays, latent stats, and per-sample metrics.
     """
@@ -67,6 +72,10 @@ def evaluate_reconstruction(
         else:
             x_hat, z = model(x)
             mu = logvar = None
+
+    # Keep evaluation output range consistent with training-time clamping.
+    if clamp_range is not None:
+        x_hat = torch.clamp(x_hat, -clamp_range, clamp_range)
 
     x_np = x[:, 0, :].cpu().numpy()
     xhat_np = x_hat[:, 0, :].cpu().numpy()
