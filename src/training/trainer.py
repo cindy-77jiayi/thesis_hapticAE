@@ -16,7 +16,6 @@ from .losses import (
     multi_scale_spectral_loss,
 )
 from .schedulers import cyclical_beta_schedule
-from .schedulers import monotonic_beta_schedule
 
 
 class Trainer:
@@ -55,12 +54,6 @@ class Trainer:
         self.beta_max = kl_cfg.get("beta_max", 0.0001)
         self.n_cycles = kl_cfg.get("n_cycles", 4)
         self.beta_ratio = kl_cfg.get("ratio", 0.5)
-        self.kl_schedule = kl_cfg.get("schedule", "cyclical")
-        self.beta_start = kl_cfg.get("beta_start", 0.0)
-        self.warmup_epochs = kl_cfg.get(
-            "warmup_epochs",
-            max(1, int(0.2 * self.total_epochs)),
-        )
 
         # Optimizer
         opt_cfg = config.get("optimizer", {})
@@ -118,21 +111,12 @@ class Trainer:
 
         if self.is_vae and mu is not None:
             kl = kl_divergence_free_bits(mu, logvar, free_bits=self.free_bits)
-            if self.kl_schedule == "monotonic":
-                beta = monotonic_beta_schedule(
-                    epoch=epoch,
-                    warmup_epochs=self.warmup_epochs,
-                    beta_start=self.beta_start,
-                    beta_max=self.beta_max,
-                )
-            else:
-                beta = cyclical_beta_schedule(
-                    epoch=epoch,
-                    total_epochs=self.total_epochs,
-                    n_cycles=self.n_cycles,
-                    ratio=self.beta_ratio,
-                    beta_max=self.beta_max,
-                )
+            beta = cyclical_beta_schedule(
+                epoch, self.total_epochs,
+                n_cycles=self.n_cycles,
+                ratio=self.beta_ratio,
+                beta_max=self.beta_max,
+            )
             loss = recon + beta * kl
         return loss
 

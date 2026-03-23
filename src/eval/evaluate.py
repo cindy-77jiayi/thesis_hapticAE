@@ -78,13 +78,3 @@ def print_metrics(result: dict):
             f"mu std={result['mu_std']:.4f}  "
             f"logvar mean={result['logvar_mean']:.4f}"
         )
-
-    ratios = np.array([m["std_ratio"] for m in result["per_sample"]], dtype=np.float64)
-    recon_stds = np.array([m["recon_std"] for m in result["per_sample"]], dtype=np.float64)
-    orig_stds = np.array([m["orig_std"] for m in result["per_sample"]], dtype=np.float64)
-    print(
-        "  Summary: "
-        f"std_ratio mean={ratios.mean():.2%}, median={np.median(ratios):.2%}, "
-        f"p10={np.percentile(ratios, 10):.2%}, p90={np.percentile(ratios, 90):.2%} | "
-        f"recon/orig std mean={recon_stds.mean() / (orig_stds.mean() + 1e-8):.2%}"
-    )
