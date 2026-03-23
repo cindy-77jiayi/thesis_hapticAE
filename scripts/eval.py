@@ -45,7 +45,14 @@ def main():
     print(f"✅ Loaded checkpoint: {args.checkpoint}")
 
     # --- Evaluate ---
-    result = evaluate_reconstruction(model, data["val_loader"], device, n_samples=args.n_samples, is_vae=is_vae)
+    result = evaluate_reconstruction(
+        model,
+        data["val_loader"],
+        device,
+        n_samples=args.n_samples,
+        is_vae=is_vae,
+        sr=config["data"]["sr"],
+    )
     print_metrics(result)
 
     # --- Plots ---

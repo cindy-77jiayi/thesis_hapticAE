@@ -47,6 +47,13 @@ def main():
     parser.add_argument("--n_components", type=int, default=8)
     parser.add_argument("--n_sweep_steps", type=int, default=11,
                         help="Number of steps per sweep (default: 11)")
+    parser.add_argument(
+        "--max_primary_reuse",
+        type=int,
+        default=2,
+        help="Maximum times the same metric can be used as primary across PCs "
+             "(use negative value to disable cap).",
+    )
     parser.add_argument("--pca_dir", type=str, default=None,
                         help="If provided, load existing PCA from this dir instead of re-fitting")
     args = parser.parse_args()
@@ -83,6 +90,7 @@ def main():
         pipe, model, device, Z_pca, evr,
         T=data_cfg["T"], sr=data_cfg["sr"],
         n_sweep_steps=args.n_sweep_steps,
+        max_primary_reuse=None if args.max_primary_reuse < 0 else args.max_primary_reuse,
     )
     save_controls_spec(spec, os.path.join(args.output_dir, "controls_spec.json"))
 

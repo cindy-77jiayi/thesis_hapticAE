@@ -207,6 +207,39 @@ def identify_dominant_metrics(sweep_result: dict, top_k: int = 3) -> list[dict]:
     return changes[:top_k]
 
 
+def _promote_primary_metric(
+    dominant: list[dict],
+    metric_usage: dict[str, int],
+    max_primary_reuse: int | None,
+) -> list[dict]:
+    """Reorder dominant metrics so the first one is less redundant across PCs.
+
+    The first entry is used as the "primary" metric in control summaries.
+    If max_primary_reuse is set, we prefer metrics whose current usage is below
+    that cap; otherwise keep the original ranking.
+    """
+    if not dominant or max_primary_reuse is None:
+        if dominant:
+            metric_usage[dominant[0]["metric"]] = metric_usage.get(dominant[0]["metric"], 0) + 1
+        return dominant
+
+    chosen_idx = None
+    for idx, item in enumerate(dominant):
+        name = item["metric"]
+        if metric_usage.get(name, 0) < max_primary_reuse:
+            chosen_idx = idx
+            break
+
+    if chosen_idx is None:
+        chosen_idx = 0
+
+    if chosen_idx != 0:
+        dominant = [dominant[chosen_idx], *dominant[:chosen_idx], *dominant[chosen_idx + 1:]]
+
+    metric_usage[dominant[0]["metric"]] = metric_usage.get(dominant[0]["metric"], 0) + 1
+    return dominant
+
+
 def build_controls_spec(
     pipe: Pipeline,
     model,
@@ -216,6 +249,7 @@ def build_controls_spec(
     T: int = 4000,
     sr: int = 8000,
     n_sweep_steps: int = 11,
+    max_primary_reuse: int | None = 2,
 ) -> dict:
     """Build the complete control specification with ranges and metric profiles.
 
@@ -225,6 +259,7 @@ def build_controls_spec(
     ranges = compute_control_ranges(Z_pca)
 
     controls = []
+    metric_usage: dict[str, int] = {}
     for i in range(n_components):
         r = ranges[i]
         sweep = sweep_axis(
@@ -236,6 +271,11 @@ def build_controls_spec(
             with_metrics=True,
         )
         dominant = identify_dominant_metrics(sweep)
+        dominant = _promote_primary_metric(
+            dominant,
+            metric_usage=metric_usage,
+            max_primary_reuse=max_primary_reuse,
+        )
 
         ctrl_entry = {
             "axis": i,
