@@ -49,6 +49,6 @@ loss:
 
 kl:
   free_bits: 0.5
-  beta_max: 0.003
+  beta_max: 0.001
   n_cycles: 5
   ratio: 0.5
