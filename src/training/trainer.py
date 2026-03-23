@@ -176,17 +176,22 @@ class Trainer:
                     f"lr={lr:.2e} | train={tr:.6f} | val={va:.6f}"
                 )
 
+            # Always track and save the best checkpoint from epoch 1.
+            if np.isfinite(va) and va < self.best_val - self.min_delta:
+                self.best_val = va
+                self.best_state = {
+                    k: v.detach().cpu().clone()
+                    for k, v in self.model.state_dict().items()
+                }
+                torch.save(self.best_state, self.ckpt_path)
+                improved = True
+            else:
+                improved = False
+
+            # Early stopping can be delayed, but best-checkpoint tracking should not be.
             if epoch >= self.early_stop_start:
-                if not np.isfinite(va):
-                    wait += 1
-                elif va < self.best_val - self.min_delta:
-                    self.best_val = va
-                    self.best_state = {
-                        k: v.detach().cpu().clone()
-                        for k, v in self.model.state_dict().items()
-                    }
+                if improved:
                     wait = 0
-                    torch.save(self.best_state, self.ckpt_path)
                 else:
                     wait += 1
                     if wait >= self.patience:
