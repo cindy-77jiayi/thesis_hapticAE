@@ -24,6 +24,28 @@ def _representative_metric_names() -> list[str]:
     return names
 
 
+# Floors prevent metric-relative errors from exploding when values are near zero.
+_METRIC_REL_FLOOR = {
+    "attack_time_s": 1e-3,
+    "onset_density_ps": 0.1,
+    "ioi_entropy_bits": 0.1,
+}
+
+
+def _stable_abs_relative_error(orig: float, recon: float, metric_name: str) -> float:
+    """Stable relative error with metric-aware denominator floor."""
+    floor = _METRIC_REL_FLOOR.get(metric_name, 1e-3)
+    denom = max(abs(orig), floor)
+    return abs(recon - orig) / denom
+
+
+def _smape(orig: float, recon: float, metric_name: str) -> float:
+    """Symmetric MAPE, bounded and robust for near-zero values."""
+    floor = _METRIC_REL_FLOOR.get(metric_name, 1e-3)
+    denom = abs(orig) + abs(recon) + floor
+    return 2.0 * abs(recon - orig) / denom
+
+
 def evaluate_reconstruction(
     model,
     loader: DataLoader,
@@ -52,6 +74,7 @@ def evaluate_reconstruction(
     metrics = []
     rep_names = _representative_metric_names()
     per_metric_rel_errors: dict[str, list[float]] = {k: [] for k in rep_names}
+    per_metric_smapes: dict[str, list[float]] = {k: [] for k in rep_names}
 
     for i in range(len(x_np)):
         orig_std = np.std(x_np[i])
@@ -69,13 +92,16 @@ def evaluate_reconstruction(
         for name in rep_names:
             o = float(orig_sig[name])
             r = float(recon_sig[name])
-            rel_err = abs(r - o) / (abs(o) + 1e-8)
+            rel_err = _stable_abs_relative_error(o, r, name)
+            smape = _smape(o, r, name)
             rep_delta[name] = {
                 "orig": o,
                 "recon": r,
                 "abs_rel_err": rel_err,
+                "smape": smape,
             }
             per_metric_rel_errors[name].append(rel_err)
+            per_metric_smapes[name].append(smape)
 
         metrics.append({
             "sample": i,
@@ -101,6 +127,9 @@ def evaluate_reconstruction(
             "spectral_log_l1_mean": float(np.mean([m["spectral_log_l1"] for m in metrics])),
             "representative_metric_abs_rel_err_mean": {
                 name: float(np.mean(vals)) for name, vals in per_metric_rel_errors.items()
+            },
+            "representative_metric_smape_mean": {
+                name: float(np.mean(vals)) for name, vals in per_metric_smapes.items()
             },
         },
     }
@@ -142,3 +171,7 @@ def print_metrics(result: dict):
     rep = s["representative_metric_abs_rel_err_mean"]
     for name in _representative_metric_names():
         print(f"    - {name}: {rep[name]:.2%}")
+    print("  Representative Metric sMAPE (mean, bounded):")
+    rep_smape = s["representative_metric_smape_mean"]
+    for name in _representative_metric_names():
+        print(f"    - {name}: {rep_smape[name]:.2%}")
