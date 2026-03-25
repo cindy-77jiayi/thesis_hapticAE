@@ -14,18 +14,6 @@ data:
   scale: 0.25
   use_minmax: false
   train_split: 0.8
-  # Optional train-only waveform mixing augmentation (default: disabled).
-  use_mixing_augmentation: false
-  mixing_probability: 0.0
-  mixing_gain_min: 0.2
-  mixing_gain_max: 0.8
-  mixing_offset_enabled: true
-  mixing_offset_min: -400
-  mixing_offset_max: 400
-  mixing_normalize_enabled: true
-  mixing_normalize_peak_target: 3.0
-  mixing_clip_min: -3.0
-  mixing_clip_max: 3.0
 
 model:
   latent_dim: 20

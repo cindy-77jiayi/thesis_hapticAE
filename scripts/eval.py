@@ -35,12 +35,7 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     # --- Data ---
-    data = build_dataloaders(
-        config,
-        args.data_dir,
-        batch_size=args.n_samples,
-        enable_train_augmentation=False,
-    )
+    data = build_dataloaders(config, args.data_dir, batch_size=args.n_samples)
 
     # --- Model ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
