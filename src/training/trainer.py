@@ -13,6 +13,7 @@ from .losses import (
     amplitude_loss,
     fft_mag_mse,
     kl_divergence_free_bits,
+    multiscale_stft_loss,
     multi_scale_spectral_loss,
 )
 from .schedulers import cyclical_beta_schedule
@@ -47,6 +48,17 @@ class Trainer:
         self.w_amp = loss_cfg.get("amplitude_weight", 0.5)
         self.w_fft = loss_cfg.get("fft_weight", 0.0)
         self.clamp_range = loss_cfg.get("clamp_range", 3.0)
+        self.recon_time_weight = loss_cfg.get("recon_time_weight", 1.0)
+
+        # Optional configurable multi-scale STFT loss (legacy path remains default).
+        self.use_multiscale_stft_loss = loss_cfg.get("use_multiscale_stft_loss", False)
+        self.stft_scales = loss_cfg.get("stft_scales", [128, 256, 512, 1024])
+        self.stft_hop_lengths = loss_cfg.get("stft_hop_lengths", None)
+        self.stft_win_lengths = loss_cfg.get("stft_win_lengths", None)
+        self.stft_scale_weights = loss_cfg.get("stft_scale_weights", None)
+        self.stft_linear_weight = loss_cfg.get("stft_linear_weight", 0.1)
+        self.stft_log_weight = loss_cfg.get("stft_log_weight", 0.1)
+        self.stft_eps = loss_cfg.get("stft_eps", 1e-7)
 
         # KL params (VAE only)
         kl_cfg = config.get("kl", {})
@@ -98,10 +110,24 @@ class Trainer:
 
         mse = torch.nn.functional.mse_loss(x_hat, x)
         l1 = torch.nn.functional.l1_loss(x_hat, x)
-        recon = mse + self.w_l1 * l1
+        time_recon = mse + self.w_l1 * l1
+        recon = self.recon_time_weight * time_recon
 
-        if self.w_spec > 0:
+        # When enabled, configurable multi-scale STFT replaces legacy spectral loss.
+        if self.use_multiscale_stft_loss:
+            recon = recon + multiscale_stft_loss(
+                x_hat, x,
+                stft_scales=self.stft_scales,
+                stft_hop_lengths=self.stft_hop_lengths,
+                stft_win_lengths=self.stft_win_lengths,
+                stft_scale_weights=self.stft_scale_weights,
+                stft_linear_weight=self.stft_linear_weight,
+                stft_log_weight=self.stft_log_weight,
+                eps=self.stft_eps,
+            )
+        elif self.w_spec > 0:
             recon = recon + self.w_spec * multi_scale_spectral_loss(x_hat, x)
+
         if self.w_amp > 0:
             recon = recon + self.w_amp * amplitude_loss(x_hat, x)
         if self.w_fft > 0:
