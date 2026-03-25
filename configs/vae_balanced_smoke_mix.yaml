@@ -1,12 +1,8 @@
-# VAE config balancing reconstruction quality and PCA structure
-# Trade-off between vae_default (good recon, bad PCA) and vae_compact (bad recon, good PCA)
-#   - latent_dim: 24 (middle ground: enough capacity, compact enough for PCA)
-#   - beta_max: 0.003 (moderate KL: structured but not over-compressed)
-# Expected: PCA 8 PCs ≈ 55-60%, reconstruction STD ratio ≈ 65-75%
+# Smoke-test preset (fast sanity check, mixing augmentation enabled).
 
 seed: 42
 model_type: vae
-run_name: vae_balanced
+run_name: vae_balanced_smoke_mix
 
 data:
   sr: 8000
@@ -14,9 +10,8 @@ data:
   scale: 0.25
   use_minmax: false
   train_split: 0.8
-  # Optional train-only waveform mixing augmentation (default: disabled).
-  use_mixing_augmentation: false
-  mixing_probability: 0.0
+  use_mixing_augmentation: true
+  mixing_probability: 0.8
   mixing_gain_min: 0.2
   mixing_gain_max: 0.8
   mixing_offset_enabled: true
@@ -38,12 +33,12 @@ model:
 
 training:
   batch_size: 32
-  epochs: 200
-  patience: 30
+  epochs: 5
+  patience: 2
   min_delta: 0.0001
-  early_stop_start: 20
+  early_stop_start: 2
   grad_clip: 1.0
-  print_every: 10
+  print_every: 1
 
 optimizer:
   lr: 0.0002
@@ -51,7 +46,7 @@ optimizer:
 
 scheduler:
   factor: 0.5
-  patience: 20
+  patience: 2
 
 loss:
   l1_weight: 0.2

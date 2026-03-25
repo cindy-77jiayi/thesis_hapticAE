@@ -14,6 +14,7 @@ def build_dataloaders(
     data_dir: str,
     batch_size: int | None = None,
     full_dataset: bool = False,
+    enable_train_augmentation: bool = True,
 ) -> dict:
     """Build train/val DataLoaders (or a single full-dataset loader) from config.
 
@@ -23,6 +24,8 @@ def build_dataloaders(
         batch_size: Override config batch_size if provided.
         full_dataset: If True, return a single loader over all files
             (used for latent extraction). Train/val loaders are omitted.
+        enable_train_augmentation: If False, force train-time augmentation
+            off even when config flags are enabled.
 
     Returns:
         Dict with keys: 'wav_files', 'global_rms', and either
@@ -59,17 +62,60 @@ def build_dataloaders(
         use_minmax=data_cfg.get("use_minmax", False),
     )
 
+    mixing_cfg = dict(
+        use_mixing_augmentation=(
+            data_cfg.get("use_mixing_augmentation", False) and enable_train_augmentation
+        ),
+        mixing_probability=data_cfg.get("mixing_probability", 0.0),
+        mixing_gain_min=data_cfg.get("mixing_gain_min", 0.2),
+        mixing_gain_max=data_cfg.get("mixing_gain_max", 0.8),
+        mixing_offset_enabled=data_cfg.get("mixing_offset_enabled", True),
+        mixing_offset_min=data_cfg.get("mixing_offset_min", -400),
+        mixing_offset_max=data_cfg.get("mixing_offset_max", 400),
+        mixing_normalize_enabled=data_cfg.get("mixing_normalize_enabled", True),
+        mixing_normalize_peak_target=data_cfg.get("mixing_normalize_peak_target", 3.0),
+        mixing_clip_min=data_cfg.get("mixing_clip_min", -3.0),
+        mixing_clip_max=data_cfg.get("mixing_clip_max", 3.0),
+    )
+
     result = {"wav_files": wav_files, "global_rms": global_rms}
 
     if full_dataset:
-        all_ds = HapticWavDataset(wav_files, **ds_kwargs)
+        # Keep extraction/eval statistics clean: never augment all-dataset paths.
+        all_ds = HapticWavDataset(
+            wav_files,
+            **ds_kwargs,
+            use_mixing_augmentation=False,
+        )
+        print("   Train mixing augmentation: OFF (full_dataset extraction mode)")
         result["all_loader"] = DataLoader(
             all_ds, batch_size=bs, shuffle=False, drop_last=False,
         )
     else:
         val_files = [wav_files[i] for i in perm[split:]]
-        train_ds = HapticWavDataset(train_files, **ds_kwargs)
-        val_ds = HapticWavDataset(val_files, **ds_kwargs)
+        train_ds = HapticWavDataset(train_files, **ds_kwargs, **mixing_cfg)
+        # Validation should stay non-augmented even if train-time mixing is enabled.
+        val_ds = HapticWavDataset(val_files, **ds_kwargs, use_mixing_augmentation=False)
+
+        if mixing_cfg["use_mixing_augmentation"]:
+            offset_msg = (
+                f"on[{mixing_cfg['mixing_offset_min']},{mixing_cfg['mixing_offset_max']}]"
+                if mixing_cfg["mixing_offset_enabled"] else "off"
+            )
+            norm_msg = (
+                f"on(target={mixing_cfg['mixing_normalize_peak_target']})"
+                if mixing_cfg["mixing_normalize_enabled"] else "off"
+            )
+            print(
+                "   Train mixing augmentation: ON "
+                f"(p={mixing_cfg['mixing_probability']:.2f}, "
+                f"g=[{mixing_cfg['mixing_gain_min']:.2f},{mixing_cfg['mixing_gain_max']:.2f}], "
+                f"offset={offset_msg}, soft_peak_norm={norm_msg})"
+            )
+        else:
+            off_reason = "evaluation mode override" if not enable_train_augmentation else "disabled by config"
+            print(f"   Train mixing augmentation: OFF ({off_reason})")
+
         result["train_loader"] = DataLoader(
             train_ds, batch_size=bs, shuffle=True, drop_last=True,
         )
