@@ -1,0 +1,72 @@
+# Balanced VAE using all positive in-repo generations (no external imports).
+# Recommended baseline after dataset expansion.
+
+seed: 42
+model_type: vae
+run_name: vae_balanced_full_nomix
+
+data:
+  sr: 8000
+  # 1.0s segment (vs previous 0.5s) to preserve more envelope/decay context.
+  T: 8000
+  scale: 0.25
+  use_minmax: false
+  train_split: 0.8
+  include_subdirs: ["uservoted", "expertvoted"]
+  accepted_models: ["HapticGen", "HapticGen-Initial", "Baseline-AudioGen"]
+  accepted_votes: [1]
+
+  # Segment sampling: still energy-rich, but not always absolute peaks.
+  segment_tries: 40
+  segment_min_energy: 0.0004
+  segment_max_resample: 5
+  segment_topk_ratio: 0.35
+  segment_peak_pick_prob: 0.65
+
+model:
+  latent_dim: 24
+  channels: [32, 64, 128, 128]
+  first_kernel: 25
+  kernel_size: 9
+  activation: leaky_relu
+  norm: group
+  logvar_clip: [-10.0, 10.0]
+
+training:
+  batch_size: 32
+  epochs: 200
+  patience: 30
+  min_delta: 0.0001
+  early_stop_start: 20
+  grad_clip: 1.0
+  print_every: 10
+
+optimizer:
+  lr: 0.0002
+  weight_decay: 0.00001
+
+scheduler:
+  factor: 0.5
+  patience: 20
+
+loss:
+  l1_weight: 0.2
+  spectral_weight: 0.15
+  amplitude_weight: 0.7
+  clamp_range: 3.0
+  use_multiscale_stft_loss: false
+  recon_time_weight: 1.0
+  stft_scales: [128, 256, 512, 1024]
+  stft_hop_lengths: [32, 64, 128, 256]
+  stft_win_lengths: [128, 256, 512, 1024]
+  stft_scale_weights: [1.0, 1.0, 1.0, 1.0]
+  stft_linear_weight: 0.1
+  stft_log_weight: 0.1
+  stft_eps: 0.0000001
+
+kl:
+  free_bits: 0.5
+  beta_max: 0.003
+  n_cycles: 2
+  ratio: 0.5
+

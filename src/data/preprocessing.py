@@ -46,14 +46,21 @@ def collect_clean_wavs(
         if include_subdirs is not None and first not in include_subdirs:
             continue
 
-        with open(meta_path, "r", encoding="utf-8") as f:
-            meta = json.load(f)
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
 
         if meta.get("model") in accepted_models and meta.get("vote") in accepted_votes:
-            wav_path = os.path.join(os.path.dirname(meta_path), meta["filename"])
+            wav_name = meta.get("filename")
+            if not wav_name:
+                continue
+            wav_path = os.path.join(os.path.dirname(meta_path), wav_name)
             if os.path.exists(wav_path):
                 wavs.append(wav_path)
-    return wavs
+    # Keep deterministic order and avoid duplicates when combining roots.
+    return sorted(set(wavs))
 
 
 def estimate_global_rms(
@@ -89,11 +96,17 @@ def load_segment_energy(
     tries: int = 30,
     min_energy: float = 5e-4,
     max_resample: int = 5,
+    topk_ratio: float = 0.3,
+    peak_pick_prob: float = 0.6,
     clip_range: tuple[float, float] = (-3.0, 3.0),
 ) -> np.ndarray:
     """Load a WAV file and extract an energy-rich segment of length T.
 
-    The segment is RMS-normalized, scaled, and clipped to *clip_range*.
+    Candidate windows are sampled randomly, then selected from the highest-energy
+    subset. This keeps training focused on informative content while preserving
+    non-peak regions (e.g. decay tails).
+
+    The chosen segment is RMS-normalized, scaled, and clipped to *clip_range*.
     """
     y, sr = librosa.load(path, sr=None, mono=True)
     if sr != sr_expect:
@@ -106,25 +119,34 @@ def load_segment_energy(
     best_seg_global = None
     best_energy_global = -1.0
 
+    tries = max(1, int(tries))
+    topk_ratio = float(np.clip(topk_ratio, 0.0, 1.0))
+    peak_pick_prob = float(np.clip(peak_pick_prob, 0.0, 1.0))
+
     for _ in range(max_resample):
-        best_seg = None
-        best_energy = -1.0
+        candidates: list[tuple[float, np.ndarray]] = []
 
         for _ in range(tries):
-            start = np.random.randint(0, max_start + 1)
+            start = np.random.randint(0, max_start + 1) if max_start > 0 else 0
             seg = y[start : start + T]
             seg = seg - np.mean(seg)
             e = float(np.mean(seg**2))
+            candidates.append((e, seg))
 
-            if e > best_energy:
-                best_energy = e
-                best_seg = seg
+        candidates.sort(key=lambda item: item[0])
+        topk = max(1, int(np.ceil(len(candidates) * topk_ratio)))
+        top_pool = candidates[-topk:]
+        if np.random.rand() < peak_pick_prob:
+            picked_energy, picked_seg = top_pool[-1]
+        else:
+            ridx = np.random.randint(0, len(top_pool))
+            picked_energy, picked_seg = top_pool[ridx]
 
-        if best_energy > best_energy_global:
-            best_energy_global = best_energy
-            best_seg_global = best_seg
+        if picked_energy > best_energy_global:
+            best_energy_global = picked_energy
+            best_seg_global = picked_seg
 
-        if best_energy >= min_energy:
+        if picked_energy >= min_energy:
             break
 
     if best_seg_global is None:
@@ -138,4 +160,3 @@ def load_segment_energy(
         seg = minmax_norm(seg)
 
     return seg.astype(np.float32)
-
