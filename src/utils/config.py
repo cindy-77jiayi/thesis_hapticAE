@@ -14,11 +14,6 @@ _DEFAULTS = {
         "scale": 0.25,
         "use_minmax": False,
         "train_split": 0.8,
-        "segment_tries": 30,
-        "segment_min_energy": 5e-4,
-        "segment_max_resample": 5,
-        "segment_topk_ratio": 0.3,
-        "segment_peak_pick_prob": 0.6,
     },
 
     "model": {

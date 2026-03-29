@@ -1,7 +1,5 @@
 """Shared data loading and model construction helpers for scripts."""
 
-import os
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -9,20 +7,6 @@ from torch.utils.data import DataLoader
 
 from .preprocessing import collect_clean_wavs, estimate_global_rms
 from .dataset import HapticWavDataset
-
-
-def _resolve_data_roots(data_dir: str, data_cfg: dict) -> list[str]:
-    """Resolve one or multiple data roots from config + CLI argument."""
-    cfg_dirs = data_cfg.get("data_dirs")
-    if cfg_dirs:
-        roots = []
-        for path in cfg_dirs:
-            resolved = path if os.path.isabs(path) else os.path.join(data_dir, path)
-            resolved = os.path.normpath(resolved)
-            if resolved not in roots:
-                roots.append(resolved)
-        return roots
-    return [data_dir]
 
 
 def build_dataloaders(
@@ -52,23 +36,12 @@ def build_dataloaders(
     include_subdirs_cfg = data_cfg.get("include_subdirs")
     include_subdirs = set(include_subdirs_cfg) if include_subdirs_cfg else None
 
-    data_roots = _resolve_data_roots(data_dir, data_cfg)
-    wav_files = []
-    source_counts: dict[str, int] = {}
-    for root in data_roots:
-        if not os.path.isdir(root):
-            source_counts[root] = 0
-            continue
-        root_wavs = collect_clean_wavs(
-            root,
-            accepted_models=accepted_models,
-            accepted_votes=accepted_votes,
-            include_subdirs=include_subdirs,
-        )
-        source_counts[root] = len(root_wavs)
-        wav_files.extend(root_wavs)
-
-    wav_files = sorted(set(wav_files))
+    wav_files = collect_clean_wavs(
+        data_dir,
+        accepted_models=accepted_models,
+        accepted_votes=accepted_votes,
+        include_subdirs=include_subdirs,
+    )
     assert len(wav_files) > 0, f"No WAV files found in {data_dir}"
 
     N = len(wav_files)
@@ -84,19 +57,9 @@ def build_dataloaders(
         global_rms=global_rms,
         scale=data_cfg["scale"],
         use_minmax=data_cfg.get("use_minmax", False),
-        segment_tries=data_cfg.get("segment_tries", 30),
-        segment_min_energy=data_cfg.get("segment_min_energy", 5e-4),
-        segment_max_resample=data_cfg.get("segment_max_resample", 5),
-        segment_topk_ratio=data_cfg.get("segment_topk_ratio", 0.3),
-        segment_peak_pick_prob=data_cfg.get("segment_peak_pick_prob", 0.6),
     )
 
-    result = {
-        "wav_files": wav_files,
-        "global_rms": global_rms,
-        "source_counts": source_counts,
-        "data_roots": data_roots,
-    }
+    result = {"wav_files": wav_files, "global_rms": global_rms}
 
     if full_dataset:
         all_ds = HapticWavDataset(wav_files, **ds_kwargs)

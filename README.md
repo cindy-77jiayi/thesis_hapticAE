@@ -71,46 +71,6 @@ python scripts/train.py \
     --output_dir outputs
 ```
 
-### Recommended Expanded Training (2026-03 update)
-
-Use all positive in-repo data (`HapticGen`, `HapticGen-Initial`, `Baseline-AudioGen`)
-with 1.0s segments and mixed high-energy sampling:
-
-```bash
-python scripts/train.py \
-    --config configs/vae_balanced_full_nomix.yaml \
-    --data_dir /path/to/hapticgen-dataset \
-    --output_dir outputs
-```
-
-Quick smoke check before full run:
-
-```bash
-python scripts/train.py \
-    --config configs/vae_balanced_smoke_nomix.yaml \
-    --data_dir /path/to/hapticgen-dataset \
-    --output_dir outputs
-```
-
-To include external waveform banks, first import as `.wav + .am1.json`:
-
-```bash
-python scripts/import_external_wavs.py \
-    --src_dirs /path/to/fsd50k/dev_audio /path/to/fsd50k/eval_audio \
-    --dst_dir data/external_waveforms \
-    --source_name FSD50K \
-    --model_tag ExternalWaveform
-```
-
-Then run mixed training (note `--data_dir .` to resolve `data.data_dirs` from repo root):
-
-```bash
-python scripts/train.py \
-    --config configs/vae_balanced_full_mix.yaml \
-    --data_dir . \
-    --output_dir outputs
-```
-
 ### Full Pipeline
 
 ```bash

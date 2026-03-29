@@ -1,4 +1,4 @@
-﻿"""CLI entry point for training haptic signal models.
+"""CLI entry point for training haptic signal models.
 
 Usage:
     python scripts/train.py --config configs/vae_default.yaml --data_dir /path/to/wavs --output_dir outputs
@@ -30,21 +30,15 @@ def main():
     set_seed(config.get("seed", 42))
 
     # --- Data ---
-    print(f"Collecting WAV files from: {args.data_dir}")
+    print(f"📂 Collecting WAV files from: {args.data_dir}")
     data = build_dataloaders(config, args.data_dir)
     print(f"   Found {len(data['wav_files'])} clean WAV files")
-    if data.get("source_counts"):
-        print("   Source counts:")
-        for root, count in data["source_counts"].items():
-            print(f"      {root}: {count}")
     print(f"   Global RMS: {data['global_rms']:.6f}")
-    seg_seconds = config["data"]["T"] / float(config["data"]["sr"])
-    print(f"   Segment: T={config['data']['T']} ({seg_seconds:.3f}s @ {config['data']['sr']}Hz)")
     print(f"   Batches: train={len(data['train_loader'])}, val={len(data['val_loader'])}")
 
     # --- Model ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}")
+    print(f"🖥️  Device: {device}")
 
     model = build_model(config, device)
     total_params = sum(p.numel() for p in model.parameters())
@@ -55,7 +49,7 @@ def main():
     trainer = Trainer(model, config, device)
     results = trainer.train(data["train_loader"], data["val_loader"])
 
-    print(f"\nTraining complete. Results in: {results['run_dir']}")
+    print(f"\n🏁 Training complete. Results in: {results['run_dir']}")
 
 
 if __name__ == "__main__":
