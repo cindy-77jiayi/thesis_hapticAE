@@ -1,8 +1,8 @@
-# Balanced VAE on in-repo positives + imported FSD50K waveforms.
+# Cross-seed stability test: fsd50k_mix profile, seed 456
 
-seed: 42
+seed: 456
 model_type: vae
-run_name: vae_balanced_fsd50k_mix
+run_name: vae_balanced_fsd50k_mix_s456
 
 data:
   sr: 8000
