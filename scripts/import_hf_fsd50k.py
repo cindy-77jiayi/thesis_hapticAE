@@ -24,6 +24,10 @@ import librosa
 import numpy as np
 import soundfile as sf
 from datasets import Audio, IterableDataset, load_dataset
+from huggingface_hub import HfFileSystem
+
+
+_HF_FS = HfFileSystem()
 
 
 def parse_args() -> argparse.Namespace:
@@ -65,8 +69,64 @@ def _to_mono(y: np.ndarray) -> np.ndarray:
     return y.reshape(-1)
 
 
+def _decode_audio_bytes(raw_bytes: bytes) -> tuple[np.ndarray, int] | None:
+    try:
+        y, sr2 = sf.read(io.BytesIO(raw_bytes), dtype="float32", always_2d=False)
+        y = np.asarray(y, dtype=np.float32)
+        y = _to_mono(y)
+        if y.size == 0:
+            return None
+        return y, int(sr2)
+    except Exception:
+        try:
+            y, sr2 = librosa.load(io.BytesIO(raw_bytes), sr=None, mono=True)
+            y = np.asarray(y, dtype=np.float32)
+            if y.size == 0:
+                return None
+            return y, int(sr2)
+        except Exception:
+            return None
+
+
+def _read_hf_uri_bytes(hf_uri: str) -> bytes | None:
+    if not hf_uri.startswith("hf://"):
+        return None
+    try:
+        hf_path = hf_uri[len("hf://") :]
+        with _HF_FS.open(hf_path, "rb") as f:
+            return f.read()
+    except Exception:
+        return None
+
+
+def _load_audio_path(raw_path: str) -> tuple[np.ndarray, int] | None:
+    if raw_path.startswith("hf://"):
+        raw_bytes = _read_hf_uri_bytes(raw_path)
+        if raw_bytes is None:
+            return None
+        return _decode_audio_bytes(raw_bytes)
+    try:
+        y, sr2 = sf.read(raw_path, dtype="float32", always_2d=False)
+        y = np.asarray(y, dtype=np.float32)
+        y = _to_mono(y)
+        if y.size == 0:
+            return None
+        return y, int(sr2)
+    except Exception:
+        try:
+            y, sr2 = librosa.load(raw_path, sr=None, mono=True)
+            y = np.asarray(y, dtype=np.float32)
+            if y.size == 0:
+                return None
+            return y, int(sr2)
+        except Exception:
+            return None
+
+
 def _extract_audio(row: dict[str, Any], audio_column: str) -> tuple[np.ndarray, int] | None:
     audio_obj = row.get(audio_column)
+    if isinstance(audio_obj, str):
+        return _load_audio_path(audio_obj)
     if not isinstance(audio_obj, dict):
         return None
 
@@ -76,24 +136,9 @@ def _extract_audio(row: dict[str, Any], audio_column: str) -> tuple[np.ndarray, 
         raw_bytes = audio_obj.get("bytes")
         raw_path = audio_obj.get("path")
         if raw_bytes is not None:
-            try:
-                y, sr2 = sf.read(io.BytesIO(raw_bytes), dtype="float32", always_2d=False)
-                y = np.asarray(y, dtype=np.float32)
-                y = _to_mono(y)
-                if y.size == 0:
-                    return None
-                return y, int(sr2)
-            except Exception:
-                return None
+            return _decode_audio_bytes(raw_bytes)
         if raw_path:
-            try:
-                y, sr2 = librosa.load(raw_path, sr=None, mono=True)
-                y = np.asarray(y, dtype=np.float32)
-                if y.size == 0:
-                    return None
-                return y, int(sr2)
-            except Exception:
-                return None
+            return _load_audio_path(raw_path)
         return None
 
     y = np.asarray(arr, dtype=np.float32)
@@ -105,6 +150,21 @@ def _extract_audio(row: dict[str, Any], audio_column: str) -> tuple[np.ndarray, 
 
 def _iter_examples(ds: Any, num_samples: int) -> Iterable[dict[str, Any]]:
     if isinstance(ds, IterableDataset):
+        # In some datasets versions/environments, iterating an IterableDataset with
+        # Audio features can trigger torch/torchcodec-dependent feature encoding.
+        # Reading raw rows from _ex_iterable avoids that path.
+        ex_iterable = getattr(ds, "_ex_iterable", None)
+        if ex_iterable is not None:
+            for i, item in enumerate(ex_iterable):
+                if i >= num_samples:
+                    break
+                if isinstance(item, tuple) and len(item) == 2:
+                    _, row = item
+                else:
+                    row = item
+                if isinstance(row, dict):
+                    yield row
+            return
         for i, row in enumerate(ds):
             if i >= num_samples:
                 break
