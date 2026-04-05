@@ -11,7 +11,7 @@ data:
   train_split: 0.8
 
 model:
-  latent_dim: 24
+  latent_dim: 20
   channels: [32, 64, 128, 128]
   first_kernel: 25
   kernel_size: 9
@@ -45,5 +45,5 @@ loss:
 kl:
   free_bits: 0.5
   beta_max: 0.003
-  n_cycles: 5
+  n_cycles: 2
   ratio: 0.5
