@@ -39,7 +39,7 @@ scheduler:
 loss:
   l1_weight: 0.2
   spectral_weight: 0.15
-  amplitude_weight: 0.9
+  amplitude_weight: 0.7
   clamp_range: 3.0
   # Optional configurable multi-scale STFT path (off keeps legacy behavior).
   use_multiscale_stft_loss: True

@@ -53,18 +53,14 @@ def collect_clean_wavs(
             wav_path = os.path.join(os.path.dirname(meta_path), meta["filename"])
             if os.path.exists(wav_path):
                 wavs.append(wav_path)
-    return sorted(wavs)
+    return wavs
 
 
 def estimate_global_rms(
-    files: list[str],
-    n: int = 200,
-    sr_expect: int = 8000,
-    seed: int | None = None,
+    files: list[str], n: int = 200, sr_expect: int = 8000
 ) -> float:
-    """Estimate median RMS across a reproducible subset of files."""
-    sampler = random.Random(seed) if seed is not None else random
-    picks = sampler.sample(list(files), min(n, len(files)))
+    """Estimate median RMS across a random subset of files."""
+    picks = random.sample(files, min(n, len(files)))
     rms_values = []
     for p in picks:
         y, sr = librosa.load(p, sr=None, mono=True)
@@ -94,7 +90,6 @@ def load_segment_energy(
     min_energy: float = 5e-4,
     max_resample: int = 5,
     clip_range: tuple[float, float] = (-3.0, 3.0),
-    rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Load a WAV file and extract an energy-rich segment of length T.
 
@@ -116,10 +111,7 @@ def load_segment_energy(
         best_energy = -1.0
 
         for _ in range(tries):
-            if rng is None:
-                start = np.random.randint(0, max_start + 1)
-            else:
-                start = int(rng.integers(0, max_start + 1))
+            start = np.random.randint(0, max_start + 1)
             seg = y[start : start + T]
             seg = seg - np.mean(seg)
             e = float(np.mean(seg**2))
@@ -146,3 +138,4 @@ def load_segment_energy(
         seg = minmax_norm(seg)
 
     return seg.astype(np.float32)
+
