@@ -30,6 +30,7 @@ def build_dataloaders(
     """
     data_cfg = config["data"]
     bs = batch_size or config.get("training", {}).get("batch_size", 32)
+    seed = int(config.get("seed", 42))
 
     accepted_models = set(data_cfg.get("accepted_models", ["HapticGen"]))
     accepted_votes = set(data_cfg.get("accepted_votes", [1]))
@@ -45,11 +46,17 @@ def build_dataloaders(
     assert len(wav_files) > 0, f"No WAV files found in {data_dir}"
 
     N = len(wav_files)
-    perm = np.random.permutation(N)
+    rng = np.random.RandomState(seed)
+    perm = rng.permutation(N)
     split = int(data_cfg["train_split"] * N)
     train_files = [wav_files[i] for i in perm[:split]]
 
-    global_rms = estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
+    global_rms = estimate_global_rms(
+        train_files,
+        n=200,
+        sr_expect=data_cfg["sr"],
+        seed=seed,
+    )
 
     ds_kwargs = dict(
         T=data_cfg["T"],
@@ -59,19 +66,38 @@ def build_dataloaders(
         use_minmax=data_cfg.get("use_minmax", False),
     )
 
-    result = {"wav_files": wav_files, "global_rms": global_rms}
+    result = {
+        "wav_files": wav_files,
+        "global_rms": global_rms,
+        "train_files": train_files,
+    }
 
     if full_dataset:
-        all_ds = HapticWavDataset(wav_files, **ds_kwargs)
+        all_ds = HapticWavDataset(
+            wav_files,
+            **ds_kwargs,
+            segment_seed=seed + 2_000_000,
+        )
         result["all_loader"] = DataLoader(
             all_ds, batch_size=bs, shuffle=False, drop_last=False,
         )
     else:
         val_files = [wav_files[i] for i in perm[split:]]
         train_ds = HapticWavDataset(train_files, **ds_kwargs)
-        val_ds = HapticWavDataset(val_files, **ds_kwargs)
+        val_ds = HapticWavDataset(
+            val_files,
+            **ds_kwargs,
+            segment_seed=seed + 1_000_000,
+        )
+        train_generator = torch.Generator()
+        train_generator.manual_seed(seed)
+        result["val_files"] = val_files
         result["train_loader"] = DataLoader(
-            train_ds, batch_size=bs, shuffle=True, drop_last=True,
+            train_ds,
+            batch_size=bs,
+            shuffle=True,
+            drop_last=True,
+            generator=train_generator,
         )
         result["val_loader"] = DataLoader(
             val_ds, batch_size=bs, shuffle=False, drop_last=False,

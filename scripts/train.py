@@ -5,6 +5,8 @@ Usage:
 """
 
 import argparse
+import json
+import os
 from _bootstrap import add_project_root
 
 add_project_root()
@@ -48,6 +50,25 @@ def main():
     # --- Train ---
     trainer = Trainer(model, config, device)
     results = trainer.train(data["train_loader"], data["val_loader"])
+
+    manifest_path = os.path.join(results["run_dir"], "data_manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "config": args.config,
+                "data_dir": args.data_dir,
+                "seed": config.get("seed", 42),
+                "global_rms": data["global_rms"],
+                "n_wav_files": len(data["wav_files"]),
+                "n_train_files": len(data.get("train_files", [])),
+                "n_val_files": len(data.get("val_files", [])),
+                "train_files": data.get("train_files", []),
+                "val_files": data.get("val_files", []),
+            },
+            f,
+            indent=2,
+        )
+    print(f"🧾 Data manifest: {manifest_path}")
 
     print(f"\n🏁 Training complete. Results in: {results['run_dir']}")
 
