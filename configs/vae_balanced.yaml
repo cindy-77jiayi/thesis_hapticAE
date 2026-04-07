@@ -47,14 +47,14 @@ loss:
   amplitude_weight: 0.7
   clamp_range: 3.0
   # Optional configurable multi-scale STFT path (off keeps legacy behavior).
-  use_multiscale_stft_loss: false
-  recon_time_weight: 1.0
+  use_multiscale_stft_loss: True
+  recon_time_weight: 1.8
   stft_scales: [128, 256, 512, 1024]
   stft_hop_lengths: [32, 64, 128, 256]
   stft_win_lengths: [128, 256, 512, 1024]
-  stft_scale_weights: [1.0, 1.0, 1.0, 1.0]
-  stft_linear_weight: 0.1
-  stft_log_weight: 0.1
+  stft_scale_weights: [1.0, 1.0, 0.8, 0.6]
+  stft_linear_weight: 0.02
+  stft_log_weight: 0.04
   stft_eps: 0.0000001
 
 kl:
