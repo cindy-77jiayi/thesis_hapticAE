@@ -5,8 +5,9 @@ import json
 import os
 import random
 
-import librosa
 import numpy as np
+
+from .audio_utils import load_audio
 
 
 ACCEPTED_MODELS = {"HapticGen"}
@@ -63,9 +64,8 @@ def estimate_global_rms(
     picks = random.sample(files, min(n, len(files)))
     rms_values = []
     for p in picks:
-        y, sr = librosa.load(p, sr=None, mono=True)
-        if sr != sr_expect:
-            y = librosa.resample(y, orig_sr=sr, target_sr=sr_expect)
+        y, _ = load_audio(p, target_sr=sr_expect, target_channels=1)
+        y = y[0]
         y = y - np.mean(y)
         rms_values.append(np.sqrt(np.mean(y**2)) + 1e-8)
     return float(np.median(rms_values))
@@ -95,9 +95,8 @@ def load_segment_energy(
 
     The segment is RMS-normalized, scaled, and clipped to *clip_range*.
     """
-    y, sr = librosa.load(path, sr=None, mono=True)
-    if sr != sr_expect:
-        y = librosa.resample(y, orig_sr=sr, target_sr=sr_expect)
+    y, _ = load_audio(path, target_sr=sr_expect, target_channels=1)
+    y = y[0]
 
     if len(y) < T:
         y = np.pad(y, (0, T - len(y)))
@@ -138,4 +137,3 @@ def load_segment_energy(
         seg = minmax_norm(seg)
 
     return seg.astype(np.float32)
-

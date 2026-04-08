@@ -13,7 +13,7 @@ def plot_loss_curves(
     save_path: str | None = None,
 ):
     """Plot train/val loss curves."""
-    plt.figure(figsize=(8, 3))
+    fig = plt.figure(figsize=(8, 3))
     plt.plot(train_losses, label="train")
     plt.plot(val_losses, label="val")
     plt.title(title)
@@ -24,7 +24,9 @@ def plot_loss_curves(
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
-    plt.show()
+        plt.close(fig)
+    else:
+        plt.show()
 
 
 def plot_waveform_comparison(
@@ -54,4 +56,6 @@ def plot_waveform_comparison(
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
-    plt.show()
+        plt.close(fig)
+    else:
+        plt.show()

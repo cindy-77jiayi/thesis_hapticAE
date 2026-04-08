@@ -1,8 +1,4 @@
-"""CLI entry point for evaluating a trained model.
-
-Usage:
-    python scripts/eval.py --config configs/vae_default.yaml --data_dir /path/to/wavs --checkpoint outputs/run/best_model.pt --output_dir outputs/eval
-"""
+"""CLI entry point for evaluating a trained model."""
 
 import argparse
 import os
@@ -14,11 +10,11 @@ add_project_root()
 import numpy as np
 import torch
 
-from src.utils.seed import set_seed
-from src.utils.config import load_config
 from src.data.loaders import build_dataloaders, build_model, load_checkpoint
 from src.eval.evaluate import evaluate_reconstruction, print_metrics
 from src.eval.visualize import plot_loss_curves, plot_waveform_comparison
+from src.utils.config import load_config
+from src.utils.seed import set_seed
 
 
 def main():
@@ -28,23 +24,35 @@ def main():
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint .pt file")
     parser.add_argument("--output_dir", type=str, default="outputs/eval")
     parser.add_argument("--n_samples", type=int, default=10)
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        help="Override config values with key=value, e.g. data.train_split=0.9",
+    )
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    config = load_config(args.config, overrides=args.set)
     set_seed(config.get("seed", 42))
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # --- Data ---
-    data = build_dataloaders(config, args.data_dir, batch_size=args.n_samples)
+    checkpoint_dir = os.path.dirname(os.path.abspath(args.checkpoint))
+    split_manifest = os.path.join(checkpoint_dir, "data_split.json")
+    split_manifest_path = split_manifest if os.path.exists(split_manifest) else None
 
-    # --- Model ---
+    data = build_dataloaders(
+        config,
+        args.data_dir,
+        batch_size=args.n_samples,
+        split_manifest_path=split_manifest_path,
+    )
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(config, device)
     load_checkpoint(model, args.checkpoint, device)
     is_vae = config.get("model_type", "vae") == "vae"
-    print(f"✅ Loaded checkpoint: {args.checkpoint}")
+    print(f"Loaded checkpoint: {args.checkpoint}")
 
-    # --- Evaluate ---
     result = evaluate_reconstruction(
         model,
         data["val_loader"],
@@ -55,13 +63,13 @@ def main():
     )
     print_metrics(result)
 
-    # --- Plots ---
     plot_waveform_comparison(
-        result["x_np"], result["xhat_np"],
+        result["x_np"],
+        result["xhat_np"],
         save_path=os.path.join(args.output_dir, "waveforms.png"),
     )
 
-    metrics_path = os.path.join(os.path.dirname(args.checkpoint), "metrics.npz")
+    metrics_path = os.path.join(checkpoint_dir, "metrics.npz")
     if os.path.exists(metrics_path):
         metrics = np.load(metrics_path)
         plot_loss_curves(
@@ -70,7 +78,7 @@ def main():
             save_path=os.path.join(args.output_dir, "loss_curves.png"),
         )
 
-    print(f"📁 Evaluation results saved to: {args.output_dir}")
+    print(f"Evaluation results saved to: {args.output_dir}")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,10 @@
 """YAML config loading with defaults."""
 
+from __future__ import annotations
+
+import copy
+import os
+
 import yaml
 
 
@@ -34,6 +39,10 @@ _DEFAULTS = {
         "early_stop_start": 10,
         "grad_clip": 1.0,
         "print_every": 10,
+        "num_workers": 0,
+        "pin_memory": False,
+        "persistent_workers": False,
+        "prefetch_factor": None,
     },
 
     "optimizer": {
@@ -44,6 +53,23 @@ _DEFAULTS = {
     "scheduler": {
         "factor": 0.5,
         "patience": 15,
+    },
+
+    "ema": {
+        "use": False,
+        "decay": 0.999,
+    },
+
+    "checkpoint": {
+        "save_last": True,
+        "save_best": True,
+        "save_every": 0,
+        "keep_last": 0,
+    },
+
+    "validation": {
+        "sample_every": 0,
+        "n_samples": 4,
     },
 
     "loss": {
@@ -74,8 +100,70 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
-def load_config(path: str) -> dict:
-    """Load a YAML config file and merge with defaults."""
-    with open(path, "r") as f:
-        user_cfg = yaml.safe_load(f) or {}
-    return _deep_merge(_DEFAULTS, user_cfg)
+def _parse_override_value(raw: str):
+    """Parse a CLI override value using YAML semantics."""
+    return yaml.safe_load(raw)
+
+
+def apply_overrides(config: dict, overrides: list[str] | None = None) -> dict:
+    """Apply dotlist overrides such as ``training.epochs=20``."""
+    if not overrides:
+        return config
+
+    updated = copy.deepcopy(config)
+    for item in overrides:
+        if "=" not in item:
+            raise ValueError(f"Invalid override '{item}'. Expected key=value syntax.")
+        key, raw_value = item.split("=", 1)
+        parts = [part for part in key.split(".") if part]
+        if not parts:
+            raise ValueError(f"Invalid override key in '{item}'.")
+
+        cursor = updated
+        for part in parts[:-1]:
+            if part not in cursor or not isinstance(cursor[part], dict):
+                cursor[part] = {}
+            cursor = cursor[part]
+        cursor[parts[-1]] = _parse_override_value(raw_value)
+    return updated
+
+
+def _load_yaml(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def _load_config_recursive(path: str, visited: set[str]) -> dict:
+    resolved = os.path.abspath(path)
+    if resolved in visited:
+        raise ValueError(f"Config inheritance cycle detected at {resolved}")
+    next_visited = set(visited)
+    next_visited.add(resolved)
+
+    user_cfg = _load_yaml(resolved)
+    base_entry = user_cfg.pop("base_config", None)
+    if base_entry is None:
+        return user_cfg
+
+    base_paths = base_entry if isinstance(base_entry, list) else [base_entry]
+    merged: dict = {}
+    for base_path in base_paths:
+        base_resolved = base_path
+        if not os.path.isabs(base_resolved):
+            base_resolved = os.path.join(os.path.dirname(resolved), base_resolved)
+        merged = _deep_merge(merged, _load_config_recursive(base_resolved, next_visited))
+    return _deep_merge(merged, user_cfg)
+
+
+def dump_config(path: str, config: dict) -> None:
+    """Write a resolved config to disk."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(config, f, sort_keys=False)
+
+
+def load_config(path: str, overrides: list[str] | None = None) -> dict:
+    """Load a YAML config file, resolve inheritance, and merge with defaults."""
+    resolved = _load_config_recursive(path, visited=set())
+    config = _deep_merge(copy.deepcopy(_DEFAULTS), resolved)
+    return apply_overrides(config, overrides)

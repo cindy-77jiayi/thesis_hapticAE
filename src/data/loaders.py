@@ -1,5 +1,8 @@
 """Shared data loading and model construction helpers for scripts."""
 
+import json
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,6 +17,7 @@ def build_dataloaders(
     data_dir: str,
     batch_size: int | None = None,
     full_dataset: bool = False,
+    split_manifest_path: str | None = None,
 ) -> dict:
     """Build train/val DataLoaders (or a single full-dataset loader) from config.
 
@@ -29,7 +33,12 @@ def build_dataloaders(
         'train_loader'/'val_loader' or 'all_loader'.
     """
     data_cfg = config["data"]
-    bs = batch_size or config.get("training", {}).get("batch_size", 32)
+    train_cfg = config.get("training", {})
+    bs = batch_size or train_cfg.get("batch_size", 32)
+    num_workers = train_cfg.get("num_workers", 0)
+    pin_memory = bool(train_cfg.get("pin_memory", False))
+    persistent_workers = bool(train_cfg.get("persistent_workers", False) and num_workers > 0)
+    prefetch_factor = train_cfg.get("prefetch_factor", None)
 
     accepted_models = set(data_cfg.get("accepted_models", ["HapticGen"]))
     accepted_votes = set(data_cfg.get("accepted_votes", [1]))
@@ -44,38 +53,86 @@ def build_dataloaders(
     )
     assert len(wav_files) > 0, f"No WAV files found in {data_dir}"
 
-    N = len(wav_files)
-    perm = np.random.permutation(N)
-    split = int(data_cfg["train_split"] * N)
-    train_files = [wav_files[i] for i in perm[:split]]
-
-    global_rms = estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
-
     ds_kwargs = dict(
         T=data_cfg["T"],
         sr_expect=data_cfg["sr"],
-        global_rms=global_rms,
         scale=data_cfg["scale"],
         use_minmax=data_cfg.get("use_minmax", False),
     )
 
-    result = {"wav_files": wav_files, "global_rms": global_rms}
+    result = {"wav_files": wav_files}
 
     if full_dataset:
-        all_ds = HapticWavDataset(wav_files, **ds_kwargs)
-        result["all_loader"] = DataLoader(
-            all_ds, batch_size=bs, shuffle=False, drop_last=False,
-        )
+        global_rms = estimate_global_rms(wav_files, n=200, sr_expect=data_cfg["sr"])
+        result["global_rms"] = global_rms
+        all_ds = HapticWavDataset(wav_files, global_rms=global_rms, **ds_kwargs)
+        loader_kwargs = {
+            "batch_size": bs,
+            "shuffle": False,
+            "drop_last": False,
+            "num_workers": num_workers,
+            "pin_memory": pin_memory,
+            "persistent_workers": persistent_workers,
+        }
+        if prefetch_factor is not None and num_workers > 0:
+            loader_kwargs["prefetch_factor"] = prefetch_factor
+        result["all_loader"] = DataLoader(all_ds, **loader_kwargs)
+        return result
+
+    train_files: list[str]
+    val_files: list[str]
+    global_rms: float
+    if split_manifest_path and os.path.exists(split_manifest_path):
+        with open(split_manifest_path, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        train_files = manifest["train_files"]
+        val_files = manifest["val_files"]
+        global_rms = float(manifest["global_rms"])
     else:
+        N = len(wav_files)
+        perm = np.random.permutation(N)
+        split = int(data_cfg["train_split"] * N)
+        train_files = [wav_files[i] for i in perm[:split]]
         val_files = [wav_files[i] for i in perm[split:]]
-        train_ds = HapticWavDataset(train_files, **ds_kwargs)
-        val_ds = HapticWavDataset(val_files, **ds_kwargs)
-        result["train_loader"] = DataLoader(
-            train_ds, batch_size=bs, shuffle=True, drop_last=True,
-        )
-        result["val_loader"] = DataLoader(
-            val_ds, batch_size=bs, shuffle=False, drop_last=False,
-        )
+        global_rms = estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
+        if split_manifest_path:
+            manifest = {
+                "data_dir": os.path.abspath(data_dir),
+                "global_rms": global_rms,
+                "train_files": train_files,
+                "val_files": val_files,
+            }
+            os.makedirs(os.path.dirname(split_manifest_path), exist_ok=True)
+            with open(split_manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+
+    result["global_rms"] = global_rms
+    result["train_files"] = train_files
+    result["val_files"] = val_files
+
+    train_ds = HapticWavDataset(train_files, global_rms=global_rms, **ds_kwargs)
+    val_ds = HapticWavDataset(val_files, global_rms=global_rms, **ds_kwargs)
+    loader_common = {
+        "batch_size": bs,
+        "num_workers": num_workers,
+        "pin_memory": pin_memory,
+        "persistent_workers": persistent_workers,
+    }
+    if prefetch_factor is not None and num_workers > 0:
+        loader_common["prefetch_factor"] = prefetch_factor
+
+    result["train_loader"] = DataLoader(
+        train_ds,
+        shuffle=True,
+        drop_last=True,
+        **loader_common,
+    )
+    result["val_loader"] = DataLoader(
+        val_ds,
+        shuffle=False,
+        drop_last=False,
+        **loader_common,
+    )
 
     return result
 
@@ -130,7 +187,9 @@ def load_checkpoint(
     Returns the model in eval mode on the given device.
     """
     map_loc = device or torch.device("cpu")
-    state = torch.load(path, map_location=map_loc, weights_only=True)
+    state = torch.load(path, map_location=map_loc, weights_only=False)
+    if isinstance(state, dict) and "model_state" in state:
+        state = state["model_state"]
     model.load_state_dict(state)
     if device is not None:
         model = model.to(device)
