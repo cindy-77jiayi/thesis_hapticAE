@@ -568,6 +568,17 @@ def summarize_candidate_axes(
             key=lambda item: item[1]["score"],
             reverse=True,
         )
+
+        if exclusive_family and pc == locked_pc_name:
+            locked_info = family_profiles_by_pc[pc].get(exclusive_family)
+            if locked_info is not None:
+                chosen_family_by_pc[pc] = (
+                    exclusive_family,
+                    locked_info,
+                    float(locked_info["score"]),
+                )
+                continue
+
         selected_family = None
         selected_info = None
         selected_score = 0.0
