@@ -71,6 +71,37 @@ python scripts/train.py \
     --output_dir outputs
 ```
 
+### Training Quality-of-Life Improvements
+
+The training CLI now supports lightweight config overrides and resumable checkpoints:
+
+```bash
+# override a few values without editing YAML
+python scripts/train.py \
+    --config configs/vae_balanced.yaml \
+    --data_dir /path/to/hapticgen-dataset/expertvoted \
+    --output_dir outputs \
+    --set training.epochs=50 \
+    --set ema.use=true \
+    --set validation.sample_every=10
+
+# resume an interrupted run
+python scripts/train.py \
+    --config configs/vae_balanced.yaml \
+    --data_dir /path/to/hapticgen-dataset/expertvoted \
+    --output_dir outputs \
+    --resume outputs/vae_balanced/last_checkpoint.pt
+```
+
+Each run now saves:
+
+- `resolved_config.yaml`: fully merged config after inheritance and CLI overrides
+- `data_split.json`: persisted train/val split manifest for reproducible eval/resume
+- `last_checkpoint.pt`: full resumable training state
+- `best_model.pt`: best model weights for downstream PCA/eval scripts
+- `validation_samples/epoch_XXX/`: periodic reconstruction previews when enabled
+- `history.json` and `metrics.npz`: per-epoch metrics history
+
 ### Full Pipeline
 
 ```bash
