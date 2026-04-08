@@ -42,99 +42,10 @@ METRIC_LABELS = {
 
 
 # ---------------------------------------------------------------------------
-# Composite PC labels (data-driven, based on HapticGen 793-sample run)
+# Optional PC labels
 # ---------------------------------------------------------------------------
 
-DEFAULT_PC_LABELS: dict[int, dict] = {
-    0: {
-        "label": "Energy\u2013spectral warmth composite",
-        "description": "Global signal energy coupled with low-frequency dominance "
-                       "and increased temporal variation",
-        "adjectives": ["quiet & bright", "loud & warm"],
-        "key_metrics": {
-            "short_term_variance": "increases",
-            "low_high_band_ratio": "increases",
-            "high_freq_ratio": "decreases",
-        },
-    },
-    1: {
-        "label": "Temporal irregularity & onset softness",
-        "description": "Rhythm becomes more irregular (higher IOI entropy and "
-                       "onset CV) while attack onset softens",
-        "adjectives": ["regular & sharp", "irregular & soft"],
-        "key_metrics": {
-            "ioi_entropy_bits": "increases",
-            "onset_interval_cv": "increases",
-            "attack_time_s": "increases",
-        },
-    },
-    2: {
-        "label": "Modulation rate\u2013spectral balance",
-        "description": "Dominant amplitude-modulation frequency rises while "
-                       "short-term energy variation and low-frequency dominance decrease",
-        "adjectives": ["slow flutter & warm", "fast flutter & bright"],
-        "key_metrics": {
-            "modulation_peak_hz": "increases",
-            "short_term_variance": "decreases",
-            "low_high_band_ratio": "decreases",
-        },
-    },
-    3: {
-        "label": "Onset-weighted decay",
-        "description": "Energy concentrates at signal onset with higher transient "
-                       "ratio and a shallower overall decay slope",
-        "adjectives": ["sustained & even", "punchy & front-loaded"],
-        "key_metrics": {
-            "envelope_decay_slope_dBps": "increases",
-            "transient_energy_ratio": "increases",
-            "low_high_band_ratio": "decreases",
-        },
-    },
-    4: {
-        "label": "Continuity\u2013rhythm composite",
-        "description": "Signal gaps vanish while rhythmic structure becomes more "
-                       "irregular, yielding a continuous but unpredictable texture",
-        "adjectives": ["gapped & periodic", "continuous & irregular"],
-        "key_metrics": {
-            "gap_ratio": "decreases",
-            "onset_interval_cv": "increases",
-            "ioi_entropy_bits": "increases",
-        },
-    },
-    5: {
-        "label": "Soft attack with rhythmic regularity",
-        "description": "Attack time lengthens while onset timing becomes more "
-                       "periodic and predictable",
-        "adjectives": ["sharp & irregular", "soft & metronomic"],
-        "key_metrics": {
-            "attack_time_s": "increases",
-            "onset_interval_cv": "decreases",
-            "ioi_entropy_bits": "decreases",
-        },
-    },
-    6: {
-        "label": "Sustained energy & late emphasis",
-        "description": "Decay slope flattens and energy shifts toward the second "
-                       "half of the signal, producing a sustained or swelling feel",
-        "adjectives": ["front-heavy & decaying", "sustained & swelling"],
-        "key_metrics": {
-            "envelope_decay_slope_dBps": "increases",
-            "late_early_energy_ratio": "increases",
-            "low_high_band_ratio": "decreases",
-        },
-    },
-    7: {
-        "label": "Soft attack with temporal jitter",
-        "description": "Attack onset softens while inter-onset intervals become "
-                       "more variable, creating a sluggish yet unpredictable feel",
-        "adjectives": ["sharp & steady", "soft & jittery"],
-        "key_metrics": {
-            "attack_time_s": "increases",
-            "onset_interval_cv": "increases",
-            "ioi_entropy_bits": "decreases",
-        },
-    },
-}
+DEFAULT_PC_LABELS: dict[int, dict] = {}
 
 
 def compute_control_ranges(

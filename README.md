@@ -1,6 +1,6 @@
 # Haptic Signal VAE — Master's Thesis
 
-Conv1D Variational Autoencoder for haptic vibrotactile signal reconstruction and controllable generation via PCA-discovered control dimensions.
+Conv1D Variational Autoencoder for haptic vibrotactile signal reconstruction and experimental controllable generation.
 
 ## Project Structure
 
@@ -21,8 +21,8 @@ thesis/
 │   ├── train.py            # Model training
 │   ├── eval.py             # Standalone evaluation
 │   ├── extract_and_pca.py  # Latent extraction + PCA fitting
-│   ├── build_controls.py   # Control spec, sweep gallery, table
-│   ├── validate_extended.py # Full validation (27 metrics, dual-reference, PCA alignment)
+│   ├── build_controls.py   # Control artifact generation
+│   ├── validate_extended.py # Extended validation
 │   └── cross_seed_stability.py  # Cross-seed PCA stability comparison
 │
 ├── configs/                # YAML experiment configs
@@ -32,9 +32,9 @@ thesis/
 │   ├── vae_balanced_s123.yaml / s456.yaml  # Cross-seed variants
 │   └── ae_matched.yaml     # Deterministic AE (same architecture, no KL)
 │
-├── controls/               # Semantic → PC mapping
-│   ├── control_schema.json # Machine-readable attribute-to-PC spec
-│   └── mapping.py          # Attribute validation & linear mapping
+├── controls/               # Control mapping utilities
+│   ├── control_schema.json # Machine-readable mapping schema
+│   └── mapping.py          # Attribute validation & mapping helpers
 │
 ├── baseline/               # Rule-based haptic presets
 │   └── rule_based_controls.py  # Action-type → attribute defaults
@@ -101,30 +101,12 @@ python scripts/validate_extended.py --config configs/vae_balanced.yaml --data_di
 | `ConvVAE` | VAE | 24 | 32→64→128→128 | Main model with Upsample+Conv decoder |
 | `ConvAE` | AE | 24 | 32→64→128→128 | Deterministic baseline (same architecture) |
 
-## Control Pipeline
-
-1. **VAE Training** → latent space (24D)
-2. **PCA** → 8 interpretable control dimensions (~59% variance)
-3. **Sweep analysis** → quantify what each PC controls
-4. **Validation** → Spearman ρ monotonicity, orthogonality, effect sizes, cross-seed stability
-
-### Signal Metrics (27 total)
-
-| Category | Metrics |
-|----------|---------|
-| Intensity | RMS energy, peak amplitude, crest factor |
-| Spectral | Centroid, rolloff, slope, flatness, HF ratio, band energies (3 bands) |
-| Envelope | Decay slope, late/early ratio, attack time, transient ratio, duration, area, entropy |
-| Rhythm | Onset density, IOI entropy, onset interval CV, modulation peak |
-| Continuity | Zero-crossing rate, gap ratio |
-| Texture | Short-term variance, AM modulation index |
-
 ## MVP: LLM-to-Haptic Pipeline
 
-Semantic attribute prediction from UI actions, mapped to haptic signals via the trained VAE+PCA.
+Semantic attribute prediction from UI actions, mapped to haptic signals via the trained model pipeline.
 
 ```
-UI Action (frames + context) → LLM → 4 Semantic Attributes → 8D PC Vector → Haptic Waveform
+UI Action (frames + context) → LLM → Control Vector → Haptic Waveform
 ```
 
 ### Quick Run (rule-based, no LLM needed)
@@ -156,15 +138,6 @@ python run_llm_to_haptic.py \
     --checkpoint outputs/vae_balanced/best_model.pt \
     --pca_dir outputs/pca
 ```
-
-### Semantic Attributes (4)
-
-| Attribute | Maps to | Description |
-|-----------|---------|-------------|
-| `energy_roughness` | PC1 | Stronger / rougher / more intense |
-| `temporal_irregularity` | PC2 | More irregular / jittery timing |
-| `modulation_texture` | PC3 | More modulated / textured vibration |
-| `decay_envelope` | PC4 | Longer / more sustained envelope |
 
 ## Loss Components (VAE)
 

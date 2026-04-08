@@ -12,6 +12,8 @@ from pathlib import Path
 import numpy as np
 from scipy.stats import spearmanr
 
+from src.pipelines.pca_control import get_component_matrix, get_explained_variance_ratio
+
 
 # ---------------------------------------------------------------------------
 # 1. Monotonicity: Spearman correlation matrix
@@ -55,6 +57,244 @@ def compute_monotonicity_matrix(sweep_results: list[dict]) -> dict:
         "pc_names": [f"PC{s['axis'] + 1}" for s in sweep_results],
         "rho": rho,
         "pvalue": pval,
+    }
+
+
+def choose_anchor_indices(
+    Z_scores: np.ndarray,
+    n_anchors: int,
+    seed: int = 42,
+    focus_dims: int = 3,
+) -> list[int]:
+    """Choose central-to-moderate real samples for multi-anchor sweeps."""
+    scores = np.linalg.norm(Z_scores[:, : min(focus_dims, Z_scores.shape[1])], axis=1)
+    out: list[int] = []
+
+    for q in np.linspace(0.2, 0.8, n_anchors):
+        idx = int(np.argmin(np.abs(scores - np.quantile(scores, q))))
+        if idx not in out:
+            out.append(idx)
+
+    rng = np.random.default_rng(seed)
+    while len(out) < n_anchors:
+        idx = int(rng.integers(0, Z_scores.shape[0]))
+        if idx not in out:
+            out.append(idx)
+
+    return out[:n_anchors]
+
+
+def safe_spearman(x, y) -> tuple[float, float]:
+    """Compute Spearman correlation while handling flat metric traces."""
+    y = np.asarray(y, dtype=float)
+    if len(y) < 3 or np.std(y) < 1e-12:
+        return 0.0, 1.0
+    r, p = spearmanr(x, y)
+    if not np.isfinite(r):
+        r = 0.0
+    if not np.isfinite(p):
+        p = 1.0
+    return float(r), float(p)
+
+
+def relative_effect_size(y) -> float:
+    """Return relative sweep span for one metric trace."""
+    y = np.asarray(y, dtype=float)
+    return float((y.max() - y.min()) / (np.mean(np.abs(y)) + 1e-10))
+
+
+def summarize_multi_anchor_metrics(
+    sweep_items: list[dict],
+    min_active_rho: float = 0.2,
+) -> dict:
+    """Aggregate monotonicity/effect statistics across multiple anchor sweeps.
+
+    Args:
+        sweep_items: List of per-anchor sweep dicts for one axis. Each item must
+            contain ``values`` and ``metrics`` fields from ``sweep_axis``.
+        min_active_rho: Minimum |rho| to count a sweep toward sign consistency.
+
+    Returns:
+        Dict with per-metric aggregated stats and a score-ranked metric list.
+    """
+    metric_names = list(sweep_items[0]["metrics"][0].keys())
+    per_metric = {}
+
+    for metric_name in metric_names:
+        rhos = []
+        pvals = []
+        effects = []
+
+        for item in sweep_items:
+            values = np.asarray(item["values"], dtype=float)
+            ys = np.asarray([m[metric_name] for m in item["metrics"]], dtype=float)
+            rho, pval = safe_spearman(values, ys)
+            rhos.append(rho)
+            pvals.append(pval)
+            effects.append(relative_effect_size(ys))
+
+        active = [np.sign(rho) for rho in rhos if abs(rho) >= min_active_rho]
+        if active:
+            sign_consistency = max(sum(sign > 0 for sign in active), sum(sign < 0 for sign in active)) / len(active)
+        else:
+            sign_consistency = 0.0
+
+        mean_abs_rho = float(np.mean(np.abs(rhos)))
+        mean_effect = float(np.mean(effects))
+        per_metric[metric_name] = {
+            "mean_rho": float(np.mean(rhos)),
+            "mean_abs_rho": mean_abs_rho,
+            "mean_pvalue": float(np.mean(pvals)),
+            "mean_effect": mean_effect,
+            "sign_consistency": float(sign_consistency),
+            "score": mean_abs_rho * min(mean_effect, 2.0) * max(sign_consistency, 0.25),
+        }
+
+    ranking = sorted(per_metric.items(), key=lambda kv: kv[1]["score"], reverse=True)
+    return {
+        "metric_names": metric_names,
+        "per_metric": per_metric,
+        "ranking": ranking,
+    }
+
+
+def build_mean_monotonicity_matrix(pc_summaries: dict[str, dict]) -> dict:
+    """Build a monotonicity-like matrix from aggregated multi-anchor summaries."""
+    pc_names = list(pc_summaries.keys())
+    metric_names = pc_summaries[pc_names[0]]["metric_names"]
+
+    rho = np.zeros((len(pc_names), len(metric_names)))
+    pval = np.zeros((len(pc_names), len(metric_names)))
+
+    for pi, pc in enumerate(pc_names):
+        for mi, metric_name in enumerate(metric_names):
+            info = pc_summaries[pc]["per_metric"][metric_name]
+            rho[pi, mi] = info["mean_rho"]
+            pval[pi, mi] = info["mean_pvalue"]
+
+    return {
+        "metric_names": metric_names,
+        "pc_names": pc_names,
+        "rho": rho,
+        "pvalue": pval,
+    }
+
+
+def _classify_axis_quality(top_info: dict, selectivity: float, seed_alignment: float | None = None) -> str:
+    """Map candidate-axis metrics to a simple strong/moderate/weak label."""
+    strong = (
+        top_info["mean_abs_rho"] >= 0.70
+        and top_info["mean_effect"] >= 0.20
+        and top_info["sign_consistency"] >= 0.80
+        and selectivity >= 2.0
+        and (seed_alignment is None or seed_alignment >= 0.70)
+    )
+    moderate = (
+        top_info["mean_abs_rho"] >= 0.50
+        and top_info["mean_effect"] >= 0.12
+        and top_info["sign_consistency"] >= 0.65
+        and selectivity >= 1.5
+        and (seed_alignment is None or seed_alignment >= 0.55)
+    )
+    if strong:
+        return "strong"
+    if moderate:
+        return "moderate"
+    return "weak"
+
+
+def summarize_candidate_axes(
+    pc_summaries: dict[str, dict],
+    explained_variance_ratio: np.ndarray,
+    cross_seed_alignment: list[float] | None = None,
+    exclude_metrics: tuple[str, ...] = ("peak_amplitude",),
+    top_k_bindings: int = 2,
+) -> dict:
+    """Turn multi-anchor metric summaries into per-axis candidate recommendations."""
+    mono = build_mean_monotonicity_matrix(pc_summaries)
+
+    bindings = {}
+    for pc in mono["pc_names"]:
+        ranking = pc_summaries[pc]["ranking"]
+        selected = [name for name, _ in ranking if name not in exclude_metrics][:top_k_bindings]
+        if not selected and ranking:
+            selected = [ranking[0][0]]
+        bindings[pc] = selected
+
+    cross = compute_cross_influence(mono, bindings)
+
+    signature = np.array(
+        [
+            [pc_summaries[pc]["per_metric"][metric_name]["mean_rho"] for metric_name in mono["metric_names"]]
+            for pc in mono["pc_names"]
+        ],
+        dtype=float,
+    )
+    signature_norm = signature / (np.linalg.norm(signature, axis=1, keepdims=True) + 1e-9)
+    similarity = np.abs(signature_norm @ signature_norm.T)
+
+    rows = []
+    for pi, pc in enumerate(mono["pc_names"]):
+        ranking = pc_summaries[pc]["ranking"]
+        usable = [(name, info) for name, info in ranking if name not in exclude_metrics]
+        top_name, top_info = usable[0] if usable else ranking[0]
+
+        seed_alignment = None if cross_seed_alignment is None else float(cross_seed_alignment[pi])
+        selectivity = float(cross[pc]["selectivity"])
+        selectivity_term = max(min(selectivity / 2.0, 2.0), 0.25)
+        seed_term = 1.0 if seed_alignment is None else max(seed_alignment, 0.25)
+        overall_score = float(top_info["score"] * selectivity_term * seed_term)
+        confidence = _classify_axis_quality(top_info, selectivity, seed_alignment)
+
+        closest_idx = -1
+        closest_sim = 0.0
+        if len(mono["pc_names"]) > 1:
+            sims = similarity[pi].copy()
+            sims[pi] = -1.0
+            closest_idx = int(np.argmax(sims))
+            closest_sim = float(sims[closest_idx])
+
+        dominant = "; ".join(
+            [
+                f"{name}:{info['mean_rho']:+.2f}/eff{info['mean_effect']:.2f}/cons{info['sign_consistency']:.2f}"
+                for name, info in ranking[:4]
+            ]
+        )
+
+        rows.append(
+            {
+                "pc": pc,
+                "axis": pi,
+                "explained_variance_ratio": round(float(explained_variance_ratio[pi]), 6),
+                "top_metric": top_name,
+                "dominant_metrics": dominant,
+                "monotonicity_abs_rho": round(float(top_info["mean_abs_rho"]), 4),
+                "effect_size_relative": round(float(top_info["mean_effect"]), 4),
+                "cross_anchor_consistency": round(float(top_info["sign_consistency"]), 4),
+                "selectivity": round(selectivity, 4),
+                "cross_seed_alignment": None if seed_alignment is None else round(seed_alignment, 4),
+                "closest_axis": "" if closest_idx < 0 else mono["pc_names"][closest_idx],
+                "closest_axis_similarity": round(closest_sim, 4),
+                "overall_score": round(overall_score, 6),
+                "confidence": confidence,
+                "use_recommendation": "use" if confidence == "strong" else ("review" if confidence == "moderate" else "disable"),
+            }
+        )
+
+    return {
+        "rows": rows,
+        "bindings": bindings,
+        "cross_influence": cross,
+        "monotonicity": {
+            "metric_names": mono["metric_names"],
+            "pc_names": mono["pc_names"],
+            "rho": mono["rho"].tolist(),
+            "pvalue": mono["pvalue"].tolist(),
+        },
+        "signature_similarity": {
+            "pc_names": mono["pc_names"],
+            "matrix": similarity.tolist(),
+        },
     }
 
 
@@ -251,6 +491,61 @@ def compare_cross_seed(seed_results: list[dict]) -> dict:
         "sign_agreement": sign_agreement,
         "metric_names": metric_names,
         "pc_names": [f"PC{i+1}" for i in range(n_pcs)],
+    }
+
+
+def compute_axis_alignment(models_by_seed: dict, n_components: int | None = None) -> dict:
+    """Compute cosine alignment for any PCA-like axis set across seeds.
+
+    This works for both baseline PCA pipelines and rotated Varimax axes.
+    """
+    seeds = list(models_by_seed.keys())
+    if len(seeds) < 2:
+        raise ValueError("Need at least two seeds to compute cross-seed alignment")
+
+    components = {}
+    evrs = {}
+    for seed, model in models_by_seed.items():
+        comp = get_component_matrix(model)
+        evr = get_explained_variance_ratio(model)
+        n_used = comp.shape[0] if n_components is None else min(n_components, comp.shape[0])
+        components[seed] = comp[:n_used]
+        evrs[seed] = evr[:n_used]
+
+    n_used = components[seeds[0]].shape[0]
+    pair_alignments = {}
+
+    for i in range(len(seeds)):
+        for j in range(i + 1, len(seeds)):
+            s1, s2 = seeds[i], seeds[j]
+            cos_sim = np.abs(components[s1] @ components[s2].T)
+            best_match = np.max(cos_sim, axis=1)
+            best_idx = np.argmax(cos_sim, axis=1)
+
+            pair_alignments[f"{s1}_vs_{s2}"] = {
+                "cosine_similarity_matrix": cos_sim.tolist(),
+                "best_match_per_pc": [
+                    {
+                        "pc": f"PC{k+1}",
+                        "best_match": f"PC{best_idx[k]+1}",
+                        "cosine_sim": round(float(best_match[k]), 4),
+                    }
+                    for k in range(n_used)
+                ],
+                "mean_alignment": round(float(np.mean(best_match)), 4),
+            }
+
+    per_pc_avg = []
+    for k in range(n_used):
+        sims = [pair_data["best_match_per_pc"][k]["cosine_sim"] for pair_data in pair_alignments.values()]
+        per_pc_avg.append(round(float(np.mean(sims)), 4))
+
+    return {
+        "seeds": seeds,
+        "pair_alignments": pair_alignments,
+        "per_pc_avg_alignment": per_pc_avg,
+        "overall_mean_alignment": round(float(np.mean(per_pc_avg)), 4),
+        "evr_per_seed": {seed: [round(float(v), 4) for v in evrs[seed]] for seed in seeds},
     }
 
 
