@@ -15,6 +15,56 @@ from scipy.stats import spearmanr
 from src.pipelines.pca_control import get_component_matrix, get_explained_variance_ratio
 
 
+ENGINEERING_CONTROL_FAMILIES = [
+    "Amplitude / Intensity (Voltage)",
+    "Frequency / Spectral Balance",
+    "Duration / Timing",
+    "Waveform / Texture",
+    "Compliance / Friction",
+]
+
+DEFAULT_METRIC_FAMILY_MAP = {
+    "rms_energy": "Amplitude / Intensity (Voltage)",
+    "peak_amplitude": "Amplitude / Intensity (Voltage)",
+    "envelope_area": "Amplitude / Intensity (Voltage)",
+    "crest_factor": "Amplitude / Intensity (Voltage)",
+    "spectral_centroid_hz": "Frequency / Spectral Balance",
+    "spectral_rolloff_hz": "Frequency / Spectral Balance",
+    "high_freq_ratio": "Frequency / Spectral Balance",
+    "low_high_band_ratio": "Frequency / Spectral Balance",
+    "band_energy_0_150": "Frequency / Spectral Balance",
+    "band_energy_150_400": "Frequency / Spectral Balance",
+    "band_energy_400_800": "Frequency / Spectral Balance",
+    "effective_duration_s": "Duration / Timing",
+    "onset_density_ps": "Duration / Timing",
+    "ioi_entropy_bits": "Duration / Timing",
+    "onset_interval_cv": "Duration / Timing",
+    "modulation_peak_hz": "Duration / Timing",
+    "envelope_entropy_bits": "Duration / Timing",
+    "spectral_flatness": "Waveform / Texture",
+    "spectral_slope": "Waveform / Texture",
+    "zero_crossing_rate_ps": "Waveform / Texture",
+    "short_term_variance": "Waveform / Texture",
+    "am_modulation_index": "Waveform / Texture",
+    "attack_time_s": "Compliance / Friction",
+    "transient_energy_ratio": "Compliance / Friction",
+    "envelope_decay_slope_dBps": "Compliance / Friction",
+    "late_early_energy_ratio": "Compliance / Friction",
+    "gap_ratio": "Compliance / Friction",
+}
+
+DEFAULT_CAUTION_METRICS = {
+    "attack_time_s",
+    "onset_density_ps",
+    "envelope_decay_slope_dBps",
+    "short_term_variance",
+    "spectral_flatness",
+}
+
+DEFAULT_FAMILY_RANK_WEIGHTS = (1.0, 0.35, 0.1)
+DEFAULT_FAMILY_REPEAT_PENALTY = 0.6
+
+
 # ---------------------------------------------------------------------------
 # 1. Monotonicity: Spearman correlation matrix
 # ---------------------------------------------------------------------------
@@ -103,6 +153,15 @@ def relative_effect_size(y) -> float:
     return float((y.max() - y.min()) / (np.mean(np.abs(y)) + 1e-10))
 
 
+def zscore_array(values: np.ndarray) -> np.ndarray:
+    """Return a safe z-scored copy of the input array."""
+    values = np.asarray(values, dtype=float)
+    std = np.std(values)
+    if std < 1e-12:
+        return np.zeros_like(values, dtype=float)
+    return (values - np.mean(values)) / std
+
+
 def summarize_multi_anchor_metrics(
     sweep_items: list[dict],
     min_active_rho: float = 0.2,
@@ -158,6 +217,235 @@ def summarize_multi_anchor_metrics(
     }
 
 
+def build_family_profiles(
+    per_metric: dict[str, dict],
+    metric_family_map: dict[str, str] | None = None,
+    family_rank_weights: tuple[float, ...] = DEFAULT_FAMILY_RANK_WEIGHTS,
+    caution_metrics: set[str] | None = None,
+    caution_penalty: float = 0.85,
+) -> dict[str, dict]:
+    """Aggregate per-metric summaries into engineering control families."""
+    metric_family_map = metric_family_map or DEFAULT_METRIC_FAMILY_MAP
+    caution_metrics = DEFAULT_CAUTION_METRICS if caution_metrics is None else caution_metrics
+
+    grouped: dict[str, list[tuple[str, dict]]] = {}
+    for metric_name, info in per_metric.items():
+        family = metric_family_map.get(metric_name)
+        if family is None:
+            continue
+        grouped.setdefault(family, []).append((metric_name, info))
+
+    family_profiles: dict[str, dict] = {}
+    for family, items in grouped.items():
+        ranked = sorted(items, key=lambda item: item[1]["score"], reverse=True)
+        weighted_score = 0.0
+        weighted_abs_rho = 0.0
+        weighted_effect = 0.0
+        weight_sum = 0.0
+
+        representative_metrics = []
+        for idx, (metric_name, info) in enumerate(ranked):
+            base_weight = family_rank_weights[idx] if idx < len(family_rank_weights) else 0.02
+            if metric_name in caution_metrics:
+                base_weight *= caution_penalty
+
+            weighted_score += base_weight * info["score"]
+            weighted_abs_rho += base_weight * info["mean_abs_rho"]
+            weighted_effect += base_weight * info["mean_effect"]
+            weight_sum += base_weight
+            representative_metrics.append(metric_name)
+
+        top_metric_name, top_metric_info = ranked[0]
+        family_profiles[family] = {
+            "family": family,
+            "top_metric": top_metric_name,
+            "top_metric_info": top_metric_info,
+            "representative_metrics": representative_metrics[:3],
+            "score": weighted_score,
+            "mean_abs_rho": 0.0 if weight_sum == 0.0 else weighted_abs_rho / weight_sum,
+            "mean_effect": 0.0 if weight_sum == 0.0 else weighted_effect / weight_sum,
+            "sign_consistency": float(top_metric_info["sign_consistency"]),
+            "mean_rho": float(top_metric_info["mean_rho"]),
+            "contains_caution_metric": any(metric_name in caution_metrics for metric_name, _ in ranked[:2]),
+        }
+
+    return family_profiles
+
+
+def choose_locked_family_axis(
+    pc_summaries: dict[str, dict],
+    family_name: str,
+    candidate_pcs: list[str],
+    explained_variance_ratio: np.ndarray,
+    metric_family_map: dict[str, str] | None = None,
+) -> dict | None:
+    """Select the one axis that owns an exclusive family such as Intensity."""
+    metric_family_map = metric_family_map or DEFAULT_METRIC_FAMILY_MAP
+
+    candidates = []
+    for pc in candidate_pcs:
+        if pc not in pc_summaries:
+            continue
+        family_profiles = build_family_profiles(
+            pc_summaries[pc]["per_metric"],
+            metric_family_map=metric_family_map,
+        )
+        info = family_profiles.get(family_name)
+        if info is None:
+            continue
+        axis_idx = int(pc.replace("PC", "")) - 1
+        other_scores = np.array(
+            [
+                family_info["score"]
+                for other_family, family_info in family_profiles.items()
+                if other_family != family_name and family_info["score"] > 0.0
+            ],
+            dtype=float,
+        )
+        family_selectivity = float(
+            info["score"] / (np.mean(other_scores) + 1e-8)
+        ) if other_scores.size else float(info["score"])
+        candidates.append(
+            {
+                "pc": pc,
+                "axis": axis_idx,
+                "family_score": float(info["score"]),
+                "cross_anchor_consistency": float(info["sign_consistency"]),
+                "family_selectivity": family_selectivity,
+                "explained_variance_ratio": float(explained_variance_ratio[axis_idx]),
+                "top_metric": info["top_metric"],
+            }
+        )
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda item: (
+            item["family_score"],
+            item["cross_anchor_consistency"],
+            item["family_selectivity"],
+            item["explained_variance_ratio"],
+        ),
+        reverse=True,
+    )
+    return candidates[0]
+
+
+def build_control_samples_from_sweep_payload(
+    sweep_payload: dict,
+    anchor_refs: np.ndarray,
+) -> tuple[np.ndarray, list[dict], list[dict]]:
+    """Expand multi-anchor sweep payload into control-space samples."""
+    controls = []
+    metrics = []
+    metadata = []
+
+    for pc_name, items in sweep_payload["sweeps"].items():
+        axis = int(pc_name.replace("PC", "")) - 1
+        for item in items:
+            anchor_id = int(item["anchor_id"])
+            reference = np.asarray(anchor_refs[anchor_id], dtype=float)
+            for value, metric_dict in zip(item["values"], item["metrics"]):
+                control = reference.copy()
+                control[axis] = float(value)
+                controls.append(control)
+                metrics.append({k: float(v) for k, v in metric_dict.items()})
+                metadata.append(
+                    {
+                        "pc": pc_name,
+                        "axis": axis,
+                        "anchor_id": anchor_id,
+                        "row_index": int(item["row_index"]),
+                        "sample_id": item.get("sample_id", ""),
+                    }
+                )
+
+    return np.asarray(controls, dtype=np.float32), metrics, metadata
+
+
+def _orthogonalize(direction: np.ndarray, basis_vectors: list[np.ndarray]) -> np.ndarray:
+    """Orthogonalize one vector against an existing basis."""
+    out = np.asarray(direction, dtype=float).copy()
+    for basis in basis_vectors:
+        denom = float(np.dot(basis, basis))
+        if denom < 1e-12:
+            continue
+        out = out - (float(np.dot(out, basis)) / denom) * basis
+    norm = float(np.linalg.norm(out))
+    if norm < 1e-10:
+        return np.zeros_like(out)
+    return out / norm
+
+
+def discover_metric_family_directions(
+    control_samples: np.ndarray,
+    metric_samples: list[dict],
+    metric_family_map: dict[str, str] | None = None,
+    target_families: list[str] | None = None,
+    locked_directions: dict[str, np.ndarray] | None = None,
+    ridge_alpha: float = 1.0,
+) -> dict:
+    """Discover family-targeted directions in control space from sweep data."""
+    metric_family_map = metric_family_map or DEFAULT_METRIC_FAMILY_MAP
+    target_families = target_families or [
+        family for family in ENGINEERING_CONTROL_FAMILIES
+        if family != "Amplitude / Intensity (Voltage)"
+    ]
+    locked_directions = {} if locked_directions is None else locked_directions
+
+    X = np.asarray(control_samples, dtype=float)
+    Xz = np.column_stack([zscore_array(X[:, col]) for col in range(X.shape[1])])
+
+    discovered = {}
+    accepted_basis = [np.asarray(vec, dtype=float) for vec in locked_directions.values()]
+    metric_names = list(metric_samples[0].keys())
+
+    for family in target_families:
+        family_metrics = [name for name in metric_names if metric_family_map.get(name) == family]
+        if not family_metrics:
+            continue
+
+        family_matrix = np.column_stack(
+            [zscore_array([sample[name] for sample in metric_samples]) for name in family_metrics]
+        )
+        if family_matrix.shape[1] == 1:
+            family_target = family_matrix[:, 0]
+        else:
+            _, _, vh = np.linalg.svd(family_matrix, full_matrices=False)
+            family_target = family_matrix @ vh[0]
+
+        target = zscore_array(family_target)
+        xtx = Xz.T @ Xz
+        coef = np.linalg.solve(
+            xtx + ridge_alpha * np.eye(Xz.shape[1], dtype=float),
+            Xz.T @ target,
+        )
+        direction = _orthogonalize(coef, accepted_basis)
+        if not np.any(direction):
+            continue
+
+        projected = Xz @ direction
+        corr = float(np.corrcoef(projected, target)[0, 1]) if np.std(projected) > 1e-12 else 0.0
+        if corr < 0.0:
+            direction = -direction
+            projected = -projected
+            corr = -corr
+
+        accepted_basis.append(direction)
+        discovered[family] = {
+            "family": family,
+            "direction": direction.astype(np.float32),
+            "source_metrics": family_metrics,
+            "target_correlation": round(corr, 4),
+        }
+
+    return {
+        "metric_names": metric_names,
+        "directions": discovered,
+    }
+
+
 def build_mean_monotonicity_matrix(pc_summaries: dict[str, dict]) -> dict:
     """Build a monotonicity-like matrix from aggregated multi-anchor summaries."""
     pc_names = list(pc_summaries.keys())
@@ -209,19 +497,45 @@ def summarize_candidate_axes(
     cross_seed_alignment: list[float] | None = None,
     exclude_metrics: tuple[str, ...] = ("peak_amplitude",),
     top_k_bindings: int = 2,
+    metric_family_map: dict[str, str] | None = None,
+    exclusive_family: str | None = None,
+    exclusive_family_axis_candidates: list[str] | None = None,
+    family_repeat_penalty: float = DEFAULT_FAMILY_REPEAT_PENALTY,
+    family_rank_weights: tuple[float, ...] = DEFAULT_FAMILY_RANK_WEIGHTS,
+    caution_metrics: set[str] | None = None,
 ) -> dict:
     """Turn multi-anchor metric summaries into per-axis candidate recommendations."""
+    metric_family_map = metric_family_map or DEFAULT_METRIC_FAMILY_MAP
+    caution_metrics = DEFAULT_CAUTION_METRICS if caution_metrics is None else caution_metrics
+
     mono = build_mean_monotonicity_matrix(pc_summaries)
 
     bindings = {}
+    family_profiles_by_pc = {}
     for pc in mono["pc_names"]:
         ranking = pc_summaries[pc]["ranking"]
         selected = [name for name, _ in ranking if name not in exclude_metrics][:top_k_bindings]
         if not selected and ranking:
             selected = [ranking[0][0]]
         bindings[pc] = selected
+        family_profiles_by_pc[pc] = build_family_profiles(
+            pc_summaries[pc]["per_metric"],
+            metric_family_map=metric_family_map,
+            family_rank_weights=family_rank_weights,
+            caution_metrics=caution_metrics,
+        )
 
     cross = compute_cross_influence(mono, bindings)
+
+    locked_family_axis = None
+    if exclusive_family and exclusive_family_axis_candidates:
+        locked_family_axis = choose_locked_family_axis(
+            pc_summaries,
+            family_name=exclusive_family,
+            candidate_pcs=exclusive_family_axis_candidates,
+            explained_variance_ratio=explained_variance_ratio,
+            metric_family_map=metric_family_map,
+        )
 
     signature = np.array(
         [
@@ -233,18 +547,82 @@ def summarize_candidate_axes(
     signature_norm = signature / (np.linalg.norm(signature, axis=1, keepdims=True) + 1e-9)
     similarity = np.abs(signature_norm @ signature_norm.T)
 
+    ranked_pc_order = sorted(
+        mono["pc_names"],
+        key=lambda name: (
+            max((info["score"] for info in family_profiles_by_pc[name].values()), default=0.0),
+            float(explained_variance_ratio[int(name.replace("PC", "")) - 1]),
+        ),
+        reverse=True,
+    )
+
+    assigned_primary_families: dict[str, str] = {}
+    chosen_family_by_pc: dict[str, tuple[str | None, dict | None, float]] = {}
+    locked_pc_name = None if locked_family_axis is None else locked_family_axis["pc"]
+    if locked_pc_name is not None:
+        assigned_primary_families[exclusive_family] = locked_pc_name
+
+    for pc in ranked_pc_order:
+        family_items = sorted(
+            family_profiles_by_pc[pc].items(),
+            key=lambda item: item[1]["score"],
+            reverse=True,
+        )
+        selected_family = None
+        selected_info = None
+        selected_score = 0.0
+        for family, info in family_items:
+            adjusted_score = float(info["score"])
+            if family == exclusive_family and pc != locked_pc_name:
+                adjusted_score = -1.0
+            elif family in assigned_primary_families and assigned_primary_families[family] != pc:
+                adjusted_score *= family_repeat_penalty
+
+            if adjusted_score > selected_score or selected_info is None:
+                selected_family = family
+                selected_info = info
+                selected_score = adjusted_score
+
+        if selected_family is not None and selected_family not in assigned_primary_families:
+            assigned_primary_families[selected_family] = pc
+        chosen_family_by_pc[pc] = (selected_family, selected_info, selected_score)
+
     rows = []
     for pi, pc in enumerate(mono["pc_names"]):
         ranking = pc_summaries[pc]["ranking"]
         usable = [(name, info) for name, info in ranking if name not in exclude_metrics]
         top_name, top_info = usable[0] if usable else ranking[0]
+        control_family, family_info, adjusted_family_score = chosen_family_by_pc[pc]
+        if family_info is None:
+            family_info = {
+                "top_metric": top_name,
+                "score": top_info["score"],
+                "mean_abs_rho": top_info["mean_abs_rho"],
+                "mean_effect": top_info["mean_effect"],
+                "sign_consistency": top_info["sign_consistency"],
+                "mean_rho": top_info["mean_rho"],
+                "representative_metrics": [top_name],
+            }
+            control_family = metric_family_map.get(top_name, "Unassigned")
 
         seed_alignment = None if cross_seed_alignment is None else float(cross_seed_alignment[pi])
         selectivity = float(cross[pc]["selectivity"])
+        off_family_scores = np.array(
+            [
+                info["score"]
+                for family, info in family_profiles_by_pc[pc].items()
+                if family != control_family and info["score"] > 0.0
+            ],
+            dtype=float,
+        )
+        family_selectivity = float(
+            adjusted_family_score / (np.mean(off_family_scores) + 1e-8)
+        ) if off_family_scores.size else float(adjusted_family_score)
         selectivity_term = max(min(selectivity / 2.0, 2.0), 0.25)
+        family_selectivity_term = max(min(family_selectivity / 2.0, 2.0), 0.25)
         seed_term = 1.0 if seed_alignment is None else max(seed_alignment, 0.25)
-        overall_score = float(top_info["score"] * selectivity_term * seed_term)
-        confidence = _classify_axis_quality(top_info, selectivity, seed_alignment)
+        overall_score = float(adjusted_family_score * selectivity_term * family_selectivity_term * seed_term)
+        confidence = _classify_axis_quality(family_info, max(selectivity, family_selectivity), seed_alignment)
 
         closest_idx = -1
         closest_sim = 0.0
@@ -261,21 +639,32 @@ def summarize_candidate_axes(
             ]
         )
 
+        is_exclusive_family_candidate = bool(
+            exclusive_family
+            and exclusive_family_axis_candidates
+            and pc in exclusive_family_axis_candidates
+            and pc != locked_pc_name
+        )
         rows.append(
             {
                 "pc": pc,
                 "axis": pi,
                 "explained_variance_ratio": round(float(explained_variance_ratio[pi]), 6),
-                "top_metric": top_name,
+                "control_family": control_family,
+                "top_metric": family_info["top_metric"],
                 "dominant_metrics": dominant,
-                "monotonicity_abs_rho": round(float(top_info["mean_abs_rho"]), 4),
-                "effect_size_relative": round(float(top_info["mean_effect"]), 4),
-                "cross_anchor_consistency": round(float(top_info["sign_consistency"]), 4),
+                "family_score": round(float(adjusted_family_score), 6),
+                "monotonicity_abs_rho": round(float(family_info["mean_abs_rho"]), 4),
+                "effect_size_relative": round(float(family_info["mean_effect"]), 4),
+                "cross_anchor_consistency": round(float(family_info["sign_consistency"]), 4),
                 "selectivity": round(selectivity, 4),
+                "family_selectivity": round(family_selectivity, 4),
                 "cross_seed_alignment": None if seed_alignment is None else round(seed_alignment, 4),
                 "closest_axis": "" if closest_idx < 0 else mono["pc_names"][closest_idx],
                 "closest_axis_similarity": round(closest_sim, 4),
                 "overall_score": round(overall_score, 6),
+                "locked_control_family": bool(pc == locked_pc_name and control_family == exclusive_family),
+                "intensity_residual_candidate": is_exclusive_family_candidate,
                 "confidence": confidence,
                 "use_recommendation": "use" if confidence == "strong" else ("review" if confidence == "moderate" else "disable"),
             }
@@ -285,6 +674,18 @@ def summarize_candidate_axes(
         "rows": rows,
         "bindings": bindings,
         "cross_influence": cross,
+        "family_profiles": {
+            pc: {
+                family: {
+                    "score": round(float(info["score"]), 6),
+                    "top_metric": info["top_metric"],
+                    "representative_metrics": info["representative_metrics"],
+                }
+                for family, info in family_profiles.items()
+            }
+            for pc, family_profiles in family_profiles_by_pc.items()
+        },
+        "locked_family_axis": locked_family_axis,
         "monotonicity": {
             "metric_names": mono["metric_names"],
             "pc_names": mono["pc_names"],

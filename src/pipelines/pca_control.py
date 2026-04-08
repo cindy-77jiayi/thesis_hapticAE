@@ -367,6 +367,62 @@ def sweep_axis(
     return result
 
 
+def sweep_direction(
+    pipe,
+    model,
+    device: torch.device,
+    direction: np.ndarray,
+    sweep_range: tuple[float, float] = (-2.0, 2.0),
+    n_steps: int = 9,
+    T: int = 4000,
+    sr: int = 8000,
+    reference: np.ndarray | None = None,
+    with_metrics: bool = False,
+    name: str = "direction",
+) -> dict:
+    """Sweep along an arbitrary unit direction in control space."""
+    n_components = get_n_components(pipe)
+    direction = np.asarray(direction, dtype=np.float32).reshape(-1)
+    if direction.shape[0] != n_components:
+        raise ValueError(f"Direction length {direction.shape[0]} does not match n_components={n_components}")
+
+    norm = float(np.linalg.norm(direction))
+    if norm < 1e-8:
+        raise ValueError("Direction norm is too small for sweeping")
+    direction = direction / norm
+
+    values = np.linspace(sweep_range[0], sweep_range[1], n_steps)
+    ref = reference if reference is not None else np.zeros(n_components, dtype=np.float32)
+
+    signals, latents, metrics_list, controls = [], [], [], []
+
+    model.eval()
+    with torch.no_grad():
+        for value in values:
+            c = ref.copy() + float(value) * direction
+            z_np = control_to_latent(pipe, c)
+            z_t = torch.from_numpy(z_np).float().unsqueeze(0).to(device)
+            sig = model.decode(z_t, target_len=T).squeeze().cpu().numpy()
+
+            controls.append(c)
+            latents.append(z_np)
+            signals.append(sig)
+            if with_metrics:
+                metrics_list.append(compute_all_metrics(sig, sr=sr))
+
+    result = {
+        "name": name,
+        "direction": direction.tolist(),
+        "values": values if not with_metrics else values.tolist(),
+        "controls": np.stack(controls),
+        "signals": np.stack(signals),
+        "latents": np.stack(latents),
+    }
+    if with_metrics:
+        result["metrics"] = metrics_list
+    return result
+
+
 def plot_sweep(sweep_result: dict, sr: int = 8000, save_path: str | None = None):
     """Visualize the single-axis sweep results."""
     import matplotlib.pyplot as plt
