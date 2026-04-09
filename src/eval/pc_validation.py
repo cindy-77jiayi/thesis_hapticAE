@@ -320,11 +320,13 @@ def choose_locked_family_axis(
     if not candidates:
         return None
 
+    # For exclusive families like Intensity, favor the axis whose behavior is
+    # cleaner relative to other families before favoring raw effect magnitude.
     candidates.sort(
         key=lambda item: (
-            item["family_score"],
-            item["cross_anchor_consistency"],
             item["family_selectivity"],
+            item["cross_anchor_consistency"],
+            item["family_score"],
             item["explained_variance_ratio"],
         ),
         reverse=True,
