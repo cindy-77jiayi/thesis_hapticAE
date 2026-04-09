@@ -278,6 +278,7 @@ def choose_locked_family_axis(
     candidate_pcs: list[str],
     explained_variance_ratio: np.ndarray,
     metric_family_map: dict[str, str] | None = None,
+    min_family_selectivity: float = 1.05,
 ) -> dict | None:
     """Select the one axis that owns an exclusive family such as Intensity."""
     metric_family_map = metric_family_map or DEFAULT_METRIC_FAMILY_MAP
@@ -302,9 +303,13 @@ def choose_locked_family_axis(
             ],
             dtype=float,
         )
+        competing_family_score = float(np.max(other_scores)) if other_scores.size else 0.0
         family_selectivity = float(
             info["score"] / (np.mean(other_scores) + 1e-8)
         ) if other_scores.size else float(info["score"])
+        is_primary_family = bool(float(info["score"]) >= competing_family_score)
+        if (not is_primary_family) or family_selectivity < min_family_selectivity:
+            continue
         candidates.append(
             {
                 "pc": pc,
@@ -312,6 +317,8 @@ def choose_locked_family_axis(
                 "family_score": float(info["score"]),
                 "cross_anchor_consistency": float(info["sign_consistency"]),
                 "family_selectivity": family_selectivity,
+                "competing_family_score": competing_family_score,
+                "is_primary_family": is_primary_family,
                 "explained_variance_ratio": float(explained_variance_ratio[axis_idx]),
                 "top_metric": info["top_metric"],
             }
@@ -320,13 +327,11 @@ def choose_locked_family_axis(
     if not candidates:
         return None
 
-    # For exclusive families like Intensity, favor the axis whose behavior is
-    # cleaner relative to other families before favoring raw effect magnitude.
     candidates.sort(
         key=lambda item: (
-            item["family_selectivity"],
-            item["cross_anchor_consistency"],
             item["family_score"],
+            item["cross_anchor_consistency"],
+            item["family_selectivity"],
             item["explained_variance_ratio"],
         ),
         reverse=True,
@@ -502,6 +507,7 @@ def summarize_candidate_axes(
     metric_family_map: dict[str, str] | None = None,
     exclusive_family: str | None = None,
     exclusive_family_axis_candidates: list[str] | None = None,
+    exclusive_family_min_selectivity: float = 1.05,
     family_repeat_penalty: float = DEFAULT_FAMILY_REPEAT_PENALTY,
     family_rank_weights: tuple[float, ...] = DEFAULT_FAMILY_RANK_WEIGHTS,
     caution_metrics: set[str] | None = None,
@@ -537,6 +543,7 @@ def summarize_candidate_axes(
             candidate_pcs=exclusive_family_axis_candidates,
             explained_variance_ratio=explained_variance_ratio,
             metric_family_map=metric_family_map,
+            min_family_selectivity=exclusive_family_min_selectivity,
         )
 
     signature = np.array(
