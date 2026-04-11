@@ -438,10 +438,12 @@ def plot_sweep(
     n = len(values)
 
     if overlay:
-        fig, ax = plt.subplots(figsize=(14, 4.5))
         base_colors = list(plt.get_cmap("tab10").colors) + list(plt.get_cmap("Dark2").colors)
+        t = np.arange(len(signals[0])) / sr
+
+        # Save a static artifact so existing notebook outputs and manifests remain valid.
+        fig, ax = plt.subplots(figsize=(14, 4.5))
         for i, (val, sig) in enumerate(zip(values, signals)):
-            t = np.arange(len(sig)) / sr
             color = base_colors[i % len(base_colors)]
             ax.plot(t, sig, linewidth=1.1, color=color, label=f"{val:+.2f}")
 
@@ -457,8 +459,50 @@ def plot_sweep(
         if save_path:
             Path(save_path).parent.mkdir(parents=True, exist_ok=True)
             plt.savefig(save_path, dpi=150, bbox_inches="tight")
-
         plt.show()
+
+        # Also render an interactive Plotly figure in notebooks so traces can be toggled on/off.
+        try:
+            import plotly.graph_objects as go
+
+            interactive_fig = go.Figure()
+            for i, (val, sig) in enumerate(zip(values, signals)):
+                r, g, b = base_colors[i % len(base_colors)]
+                interactive_fig.add_trace(
+                    go.Scatter(
+                        x=t,
+                        y=sig,
+                        mode="lines",
+                        name=f"{val:+.2f}",
+                        line={"color": f"rgb({int(r*255)}, {int(g*255)}, {int(b*255)})", "width": 2},
+                    )
+                )
+
+            interactive_fig.update_layout(
+                title=f"Interactive overlay: PC{axis+1}",
+                xaxis_title="Time (s)",
+                yaxis_title="Amplitude",
+                template="plotly_white",
+                legend={
+                    "title": {"text": "Sweep value"},
+                    "orientation": "v",
+                    "x": 1.02,
+                    "y": 1.0,
+                    "xanchor": "left",
+                    "yanchor": "top",
+                },
+                margin={"l": 60, "r": 180, "t": 60, "b": 50},
+            )
+            interactive_fig.update_yaxes(range=[-3.5, 3.5])
+            interactive_fig.show()
+
+            if save_path:
+                html_path = Path(save_path).with_suffix(".html")
+                interactive_fig.write_html(str(html_path), include_plotlyjs="cdn")
+        except Exception:
+            # Plotly is optional; the static overlay above remains available if interactive rendering fails.
+            pass
+
         return
 
     fig, axes = plt.subplots(n, 1, figsize=(14, 1.8 * n), sharex=True)
