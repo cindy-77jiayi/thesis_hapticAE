@@ -459,7 +459,7 @@ def plot_sweep(
         if save_path:
             Path(save_path).parent.mkdir(parents=True, exist_ok=True)
             plt.savefig(save_path, dpi=150, bbox_inches="tight")
-        plt.show()
+        plt.close(fig)
 
         # Also render an interactive Plotly figure in notebooks so traces can be toggled on/off.
         try:
