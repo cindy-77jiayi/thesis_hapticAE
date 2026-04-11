@@ -423,7 +423,12 @@ def sweep_direction(
     return result
 
 
-def plot_sweep(sweep_result: dict, sr: int = 8000, save_path: str | None = None):
+def plot_sweep(
+    sweep_result: dict,
+    sr: int = 8000,
+    save_path: str | None = None,
+    overlay: bool = False,
+):
     """Visualize the single-axis sweep results."""
     import matplotlib.pyplot as plt
 
@@ -431,6 +436,29 @@ def plot_sweep(sweep_result: dict, sr: int = 8000, save_path: str | None = None)
     signals = sweep_result["signals"]
     axis = sweep_result["axis"]
     n = len(values)
+
+    if overlay:
+        fig, ax = plt.subplots(figsize=(14, 4.5))
+        cmap = plt.get_cmap("viridis", n)
+        for i, (val, sig) in enumerate(zip(values, signals)):
+            t = np.arange(len(sig)) / sr
+            ax.plot(t, sig, linewidth=0.9, color=cmap(i), label=f"{val:+.2f}")
+
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Amplitude")
+        ax.set_title(
+            f"Single-axis sweep overlay: PC{axis+1} from {values[0]:.1f} to {values[-1]:.1f}"
+        )
+        ax.set_ylim(-3.5, 3.5)
+        ax.legend(title="Sweep value", ncol=min(3, n), fontsize=8, title_fontsize=9)
+        plt.tight_layout()
+
+        if save_path:
+            Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(save_path, dpi=150, bbox_inches="tight")
+
+        plt.show()
+        return
 
     fig, axes = plt.subplots(n, 1, figsize=(14, 1.8 * n), sharex=True)
     if n == 1:
