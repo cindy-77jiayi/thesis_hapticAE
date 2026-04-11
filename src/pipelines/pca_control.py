@@ -439,10 +439,11 @@ def plot_sweep(
 
     if overlay:
         fig, ax = plt.subplots(figsize=(14, 4.5))
-        cmap = plt.get_cmap("viridis", n)
+        base_colors = list(plt.get_cmap("tab10").colors) + list(plt.get_cmap("Dark2").colors)
         for i, (val, sig) in enumerate(zip(values, signals)):
             t = np.arange(len(sig)) / sr
-            ax.plot(t, sig, linewidth=0.9, color=cmap(i), label=f"{val:+.2f}")
+            color = base_colors[i % len(base_colors)]
+            ax.plot(t, sig, linewidth=1.1, color=color, label=f"{val:+.2f}")
 
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Amplitude")
