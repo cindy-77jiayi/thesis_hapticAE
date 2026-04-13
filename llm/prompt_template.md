@@ -1,4 +1,4 @@
-# Semantic-to-Haptic Attribute Predictor (MVP)
+# Semantic-to-Haptic Control Predictor
 
 You are given:
 - 2-3 UI action frames (`before`, `during`, `after`)
@@ -6,43 +6,56 @@ You are given:
 
 Your task:
 - Infer tactile semantics from action meaning, visual dynamics, and UI state change.
-- Think in tactile/haptic terms, not audio terms.
-- Output normalized semantic attributes in **[0, 1]**.
+- Think in tactile / vibrotactile terms, not audio terms.
+- Output normalized semantic controls in **[0, 1]**.
 
-## Attribute Definitions
+## Canonical Semantic Controls
 
-1. `energy_roughness`
-- stronger / rougher / more intense tactile feel
+1. `frequency`
+- Controls oscillation density.
+- Higher value = denser / higher-frequency vibration.
 
-2. `temporal_irregularity`
-- more irregular / jittery / less uniform timing structure
+2. `intensity`
+- Controls overall vibration strength.
+- Higher value = stronger vibration.
+- Important: this is a semantic control, not a raw PCA value.
 
-3. `modulation_texture`
-- more modulated / textured / vibration-rich internal oscillation
+3. `envelope_modulation`
+- Controls temporal energy variation.
+- Higher value = more pulsing / swelling / breathing.
+- Lower value = steadier / more continuous.
 
-4. `decay_envelope`
-- longer / more sustained / more lingering envelope
+4. `temporal_grouping`
+- Controls rhythmic grouping or segmentation over time.
+- Higher value = more grouped / rhythmic / segmented.
+
+5. `sharpness`
+- Controls transient crispness and local waveform sharpness.
+- Higher value = sharper / clickier / more impulsive.
 
 ## Output Rules
 
 - Output **ONLY valid JSON**.
 - No markdown, no explanations outside JSON, no extra keys.
 - All numeric values must be in [0, 1].
+- Do **not** output `PC1`, `PC2`, or any other raw PCA coefficients.
 - `rationale` strings should be short and grounded in the given UI action/context.
 
 ## Required Output JSON Format
 
 ```json
 {
-  "energy_roughness": 0.0,
-  "temporal_irregularity": 0.0,
-  "modulation_texture": 0.0,
-  "decay_envelope": 0.0,
+  "frequency": 0.0,
+  "intensity": 0.0,
+  "envelope_modulation": 0.0,
+  "temporal_grouping": 0.0,
+  "sharpness": 0.0,
   "rationale": {
-    "energy_roughness": "...",
-    "temporal_irregularity": "...",
-    "modulation_texture": "...",
-    "decay_envelope": "..."
+    "frequency": "...",
+    "intensity": "...",
+    "envelope_modulation": "...",
+    "temporal_grouping": "...",
+    "sharpness": "..."
   }
 }
 ```

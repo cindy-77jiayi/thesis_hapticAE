@@ -8,6 +8,7 @@ Conv1D Variational Autoencoder for haptic vibrotactile signal reconstruction and
 thesis/
 ├── README.md
 ├── requirements.txt
+├── semantic_control_schema.json  # Canonical semantic control schema
 │
 ├── src/                    # Modular source code
 │   ├── data/               # Dataset and preprocessing
@@ -15,6 +16,7 @@ thesis/
 │   ├── training/           # Trainer, losses, KL schedulers
 │   ├── eval/               # Evaluation, metrics, validation, visualization
 │   ├── pipelines/          # PCA control, sweep, control specification
+│   ├── semantic/           # Canonical semantic layer and semantic↔PCA mapping
 │   └── utils/              # Seed, config loading
 │
 ├── scripts/                # CLI entry points
@@ -32,9 +34,9 @@ thesis/
 │   ├── vae_balanced_s123.yaml / s456.yaml  # Cross-seed variants
 │   └── ae_matched.yaml     # Deterministic AE (same architecture, no KL)
 │
-├── controls/               # Control mapping utilities
-│   ├── control_schema.json # Machine-readable mapping schema
-│   └── mapping.py          # Attribute validation & mapping helpers
+├── controls/               # Compatibility wrappers for semantic mapping
+│   ├── control_schema.json # Deprecated compatibility shim
+│   └── mapping.py          # Backward-compatible semantic mapping wrapper
 │
 ├── baseline/               # Rule-based haptic presets
 │   └── rule_based_controls.py  # Action-type → attribute defaults
@@ -55,6 +57,35 @@ thesis/
 ```
 
 ## Quick Start
+
+## Canonical Semantic Space
+
+The PCA semantic source of truth is:
+
+- `PC1 = frequency`
+- `PC2 = intensity` (inverted in PCA space)
+- `PC3 = envelope_modulation`
+- `PC4 = temporal_grouping`
+- `PC5 = sharpness`
+
+Important inversion rule for `PC2`:
+
+- lower `PC2` = higher physical amplitude
+- higher semantic `intensity` = stronger vibration
+
+The semantic mapping layer therefore exposes a normal-direction semantic field:
+
+```json
+{
+  "frequency": 0.5,
+  "intensity": 0.5,
+  "envelope_modulation": 0.5,
+  "temporal_grouping": 0.5,
+  "sharpness": 0.5
+}
+```
+
+but internally maps `intensity` to the inverted `PC2` axis.
 
 ### Google Colab (recommended)
 
@@ -132,13 +163,27 @@ python scripts/validate_extended.py --config configs/vae_balanced.yaml --data_di
 | `ConvVAE` | VAE | 24 | 32→64→128→128 | Main model with Upsample+Conv decoder |
 | `ConvAE` | AE | 24 | 32→64→128→128 | Deterministic baseline (same architecture) |
 
-## MVP: LLM-to-Haptic Pipeline
+## Semantic-to-Haptic Pipeline
 
-Semantic attribute prediction from UI actions, mapped to haptic signals via the trained model pipeline.
+Canonical semantic prediction from UI actions, mapped to haptic signals via the trained model pipeline.
 
 ```
-UI Action (frames + context) → LLM → Control Vector → Haptic Waveform
+UI / multimodal input → LLM semantic interpretation → semantic controls → PCA vector → Haptic waveform
 ```
+
+LLM-facing outputs should use canonical semantic keys only:
+
+```json
+{
+  "frequency": 0.7,
+  "intensity": 0.8,
+  "envelope_modulation": 0.6,
+  "temporal_grouping": 0.4,
+  "sharpness": 0.5
+}
+```
+
+LLM outputs should not emit raw `PC1..PC8` values or low-level waveform parameters.
 
 ### Quick Run (rule-based, no LLM needed)
 

@@ -1,25 +1,24 @@
-"""Deterministic mapping from normalized semantic attributes to PCA controls."""
+"""Backward-compatible wrappers around the canonical semantic control mapping."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
+from src.semantic.mapping import (
+    normalize_semantic_controls,
+    pca_to_semantic,
+    semantic_to_pca,
+)
+from src.semantic.pc_semantics import load_semantic_schema
 
-DEFAULT_SCHEMA_PATH = Path(__file__).with_name("control_schema.json")
+
+DEFAULT_SCHEMA_PATH = Path(__file__).resolve().parents[1] / "semantic_control_schema.json"
 
 
 def load_control_schema(schema_path: str | Path | None = None) -> dict[str, Any]:
-    """Load the machine-readable control schema JSON."""
-    path = Path(schema_path) if schema_path else DEFAULT_SCHEMA_PATH
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def map_unit_to_pc(x: float, low: float, high: float) -> float:
-    """Linearly map x in [0, 1] to [low, high]."""
-    return low + float(x) * (high - low)
+    """Load the canonical semantic control schema."""
+    return load_semantic_schema(schema_path or DEFAULT_SCHEMA_PATH)
 
 
 def validate_attributes(
@@ -28,49 +27,12 @@ def validate_attributes(
     *,
     clip: bool = True,
 ) -> dict[str, float]:
-    """Validate and normalize semantic attributes.
+    """Compatibility wrapper for semantic input validation.
 
-    Args:
-        attrs: Incoming attribute dict from LLM/rule-based output.
-        schema: Optional loaded schema; defaults to control_schema.json.
-        clip: If True, clips out-of-range numeric values to [0, 1].
-
-    Returns:
-        Dict with all expected attributes as floats in [0, 1].
-
-    Raises:
-        ValueError: Missing/unknown keys or non-numeric values.
+    The returned dict always uses canonical semantic keys:
+    `frequency`, `intensity`, `envelope_modulation`, `temporal_grouping`, `sharpness`.
     """
-    schema = schema or load_control_schema()
-    specs = schema["attributes"]
-    expected = [s["name"] for s in specs]
-
-    missing = [k for k in expected if k not in attrs]
-    if missing:
-        raise ValueError(f"Missing attributes: {missing}. Expected: {expected}")
-
-    unknown = [k for k in attrs.keys() if k not in expected]
-    if unknown:
-        raise ValueError(f"Unknown attributes: {unknown}. Expected only: {expected}")
-
-    validated: dict[str, float] = {}
-    for spec in specs:
-        name = spec["name"]
-        value = attrs[name]
-        if not isinstance(value, (int, float)):
-            raise ValueError(
-                f"Attribute '{name}' must be numeric in [0,1], got {type(value).__name__}: {value}"
-            )
-
-        v = float(value)
-        if clip:
-            v = min(max(v, 0.0), 1.0)
-        elif not (0.0 <= v <= 1.0):
-            raise ValueError(f"Attribute '{name}' out of range [0,1]: {v}")
-
-        validated[name] = v
-
-    return validated
+    return normalize_semantic_controls(attrs, schema=schema, clip=clip, require_all=True)
 
 
 def attributes_to_pc_vector(
@@ -79,27 +41,14 @@ def attributes_to_pc_vector(
     *,
     clip: bool = True,
 ) -> list[float]:
-    """Convert 4 normalized semantic attributes into an 8D PC vector.
+    """Compatibility wrapper that maps semantic controls into an 8D PCA vector."""
+    vector = semantic_to_pca(attrs, schema=schema, clip=clip, require_all=True)
+    return [float(v) for v in vector.tolist()]
 
-    Mapping rule for MVP:
-      - PC1..PC4 are linearly mapped from attributes.
-      - PC5..PC8 are fixed to 0.
-    """
-    schema = schema or load_control_schema()
-    validated = validate_attributes(attrs, schema=schema, clip=clip)
 
-    pc_vector = list(schema.get("defaults", {}).get("pc_vector", [0.0] * 8))
-    if len(pc_vector) != 8:
-        raise ValueError(f"default pc_vector must be length 8, got {len(pc_vector)}")
-
-    for spec in schema["attributes"]:
-        name = spec["name"]
-        idx = int(spec["pc_index"])
-        low, high = spec["pc_range"]
-        pc_vector[idx] = map_unit_to_pc(validated[name], float(low), float(high))
-
-    # Force the tail dimensions to zero for MVP invariance.
-    for i in range(4, 8):
-        pc_vector[i] = 0.0
-
-    return [float(v) for v in pc_vector]
+def pc_vector_to_attributes(
+    pc_vector: list[float],
+    schema: dict[str, Any] | None = None,
+) -> dict[str, float]:
+    """Map an 8D PCA vector back to canonical semantic attributes."""
+    return pca_to_semantic(pc_vector, schema=schema)

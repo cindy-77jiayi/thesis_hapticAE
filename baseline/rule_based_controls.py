@@ -1,4 +1,4 @@
-"""Rule-based baseline for semantic haptic attributes."""
+"""Rule-based baseline for canonical semantic haptic controls."""
 
 from __future__ import annotations
 
@@ -7,89 +7,99 @@ from typing import Any
 
 
 DEFAULT_ATTRS: dict[str, float] = {
-    "energy_roughness": 0.5,
-    "temporal_irregularity": 0.5,
-    "modulation_texture": 0.5,
-    "decay_envelope": 0.5,
+    "frequency": 0.5,
+    "intensity": 0.5,
+    "envelope_modulation": 0.5,
+    "temporal_grouping": 0.5,
+    "sharpness": 0.5,
 }
 
 
-# Baseline presets for quick MVP comparison vs. LLM predictions.
+# Coarse fallback presets for compatibility when no LLM semantic output is available.
 ACTION_TYPE_PRESETS: dict[str, dict[str, float]] = {
     "success_confirmation": {
-        "energy_roughness": 0.7,
-        "temporal_irregularity": 0.1,
-        "modulation_texture": 0.4,
-        "decay_envelope": 0.6,
+        "frequency": 0.55,
+        "intensity": 0.70,
+        "envelope_modulation": 0.35,
+        "temporal_grouping": 0.20,
+        "sharpness": 0.45,
     },
     "error_alert": {
-        "energy_roughness": 0.8,
-        "temporal_irregularity": 0.8,
-        "modulation_texture": 0.7,
-        "decay_envelope": 0.2,
+        "frequency": 0.75,
+        "intensity": 0.85,
+        "envelope_modulation": 0.70,
+        "temporal_grouping": 0.80,
+        "sharpness": 0.80,
     },
     "toggle_on": {
-        "energy_roughness": 0.5,
-        "temporal_irregularity": 0.1,
-        "modulation_texture": 0.3,
-        "decay_envelope": 0.3,
+        "frequency": 0.60,
+        "intensity": 0.50,
+        "envelope_modulation": 0.20,
+        "temporal_grouping": 0.15,
+        "sharpness": 0.55,
     },
     "toggle_off": {
-        "energy_roughness": 0.4,
-        "temporal_irregularity": 0.1,
-        "modulation_texture": 0.2,
-        "decay_envelope": 0.25,
+        "frequency": 0.45,
+        "intensity": 0.40,
+        "envelope_modulation": 0.15,
+        "temporal_grouping": 0.15,
+        "sharpness": 0.45,
     },
     "slider_drag": {
-        "energy_roughness": 0.45,
-        "temporal_irregularity": 0.35,
-        "modulation_texture": 0.65,
-        "decay_envelope": 0.35,
+        "frequency": 0.65,
+        "intensity": 0.45,
+        "envelope_modulation": 0.55,
+        "temporal_grouping": 0.40,
+        "sharpness": 0.40,
     },
     "success_state": {
-        "energy_roughness": 0.6,
-        "temporal_irregularity": 0.15,
-        "modulation_texture": 0.35,
-        "decay_envelope": 0.55,
+        "frequency": 0.50,
+        "intensity": 0.60,
+        "envelope_modulation": 0.25,
+        "temporal_grouping": 0.20,
+        "sharpness": 0.35,
     },
     "warning_alert": {
-        "energy_roughness": 0.65,
-        "temporal_irregularity": 0.5,
-        "modulation_texture": 0.55,
-        "decay_envelope": 0.35,
+        "frequency": 0.65,
+        "intensity": 0.70,
+        "envelope_modulation": 0.50,
+        "temporal_grouping": 0.55,
+        "sharpness": 0.65,
     },
     "long_press": {
-        "energy_roughness": 0.55,
-        "temporal_irregularity": 0.2,
-        "modulation_texture": 0.45,
-        "decay_envelope": 0.75,
+        "frequency": 0.35,
+        "intensity": 0.55,
+        "envelope_modulation": 0.35,
+        "temporal_grouping": 0.20,
+        "sharpness": 0.25,
     },
     "selection_change": {
-        "energy_roughness": 0.4,
-        "temporal_irregularity": 0.2,
-        "modulation_texture": 0.3,
-        "decay_envelope": 0.3,
+        "frequency": 0.55,
+        "intensity": 0.40,
+        "envelope_modulation": 0.20,
+        "temporal_grouping": 0.25,
+        "sharpness": 0.45,
     },
     "cancel_action": {
-        "energy_roughness": 0.35,
-        "temporal_irregularity": 0.15,
-        "modulation_texture": 0.2,
-        "decay_envelope": 0.25,
+        "frequency": 0.40,
+        "intensity": 0.35,
+        "envelope_modulation": 0.20,
+        "temporal_grouping": 0.20,
+        "sharpness": 0.40,
     },
 }
 
 
 def get_rule_based_attributes(action_type: str | None, metadata: dict[str, Any] | None = None) -> dict[str, float]:
-    """Return baseline attributes for an action type.
+    """Return canonical semantic controls for an action type.
 
-    Falls back to neutral defaults when action_type is missing/unknown.
+    This is only a heuristic fallback when no structured semantic output is available.
     """
     attrs = deepcopy(DEFAULT_ATTRS)
     if action_type and action_type in ACTION_TYPE_PRESETS:
         attrs.update(ACTION_TYPE_PRESETS[action_type])
         return attrs
 
-    # Optional lightweight fallback hinting from action_name when type is absent.
     action_name = (metadata or {}).get("action_name", "")
     if isinstance(action_name, str):
         name = action_name.lower()

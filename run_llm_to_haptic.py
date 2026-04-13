@@ -1,4 +1,4 @@
-"""MVP wrapper: UI action/context -> semantic attributes -> PC vector -> haptic signal.
+"""MVP wrapper: UI action/context -> canonical semantic controls -> PC vector -> haptic signal.
 
 This script does not retrain VAE/PCA. It only performs semantic-to-control mapping.
 """
@@ -13,6 +13,7 @@ from typing import Any
 
 from baseline.rule_based_controls import get_rule_based_attributes
 from controls.mapping import attributes_to_pc_vector, validate_attributes
+from src.semantic.pc_semantics import CANONICAL_SEMANTIC_ORDER, load_semantic_schema
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -56,6 +57,19 @@ def _load_llm_output_text(args: argparse.Namespace) -> str | None:
     if args.llm_output_path:
         return Path(args.llm_output_path).read_text(encoding="utf-8")
     return None
+
+
+def _extract_semantic_controls(payload: dict[str, Any]) -> dict[str, Any]:
+    """Extract canonical semantic controls from a parsed LLM payload."""
+    source = payload.get("semantic_controls")
+    if isinstance(source, dict):
+        payload = source
+    return {name: payload[name] for name in CANONICAL_SEMANTIC_ORDER if name in payload}
+
+
+def _default_semantic_controls(schema: dict[str, Any]) -> dict[str, float]:
+    """Return canonical semantic defaults from schema."""
+    return {spec["canonical_name"]: float(spec.get("default", 0.5)) for spec in schema["semantic_controls"]}
 
 
 def _build_prompt(
@@ -144,7 +158,7 @@ def _maybe_save_preview(signal_path: Path, output_dir: Path) -> Path | None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run MVP semantic-to-haptic inference pipeline")
+    parser = argparse.ArgumentParser(description="Run canonical semantic-to-haptic inference pipeline")
     parser.add_argument("--action_dir", type=str, required=True, help="Path to one action folder")
     parser.add_argument("--output_dir", type=str, default="outputs/llm_mvp")
     parser.add_argument("--prompt_template", type=str, default="llm/prompt_template.md")
@@ -160,6 +174,7 @@ def main() -> None:
     action_dir = Path(args.action_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    semantic_schema = load_semantic_schema()
 
     metadata_path = action_dir / "metadata.json"
     metadata = _read_json(metadata_path)
@@ -178,58 +193,76 @@ def main() -> None:
 
     if args.use_rule_based:
         source = "rule_based"
-        attrs = get_rule_based_attributes(args.baseline_action_type or metadata.get("action_type"), metadata)
+        semantic_controls = get_rule_based_attributes(args.baseline_action_type or metadata.get("action_type"), metadata)
     else:
         llm_text = _load_llm_output_text(args)
         if not llm_text:
             source = "fallback_default"
-            fallback_reason = "No LLM output provided; used baseline/default attributes."
-            attrs = get_rule_based_attributes(args.baseline_action_type or metadata.get("action_type"), metadata)
+            fallback_reason = "No LLM output provided; used semantic fallback controls."
+            semantic_controls = get_rule_based_attributes(args.baseline_action_type or metadata.get("action_type"), metadata)
         else:
             try:
                 parsed = _extract_first_json_object(llm_text)
                 rationale = parsed.get("rationale", {}) if isinstance(parsed.get("rationale", {}), dict) else {}
-                attrs = {
-                    "energy_roughness": parsed["energy_roughness"],
-                    "temporal_irregularity": parsed["temporal_irregularity"],
-                    "modulation_texture": parsed["modulation_texture"],
-                    "decay_envelope": parsed["decay_envelope"],
-                }
+                semantic_controls = _extract_semantic_controls(parsed)
+                if set(semantic_controls) != set(CANONICAL_SEMANTIC_ORDER):
+                    missing = [name for name in CANONICAL_SEMANTIC_ORDER if name not in semantic_controls]
+                    raise ValueError(f"Missing canonical semantic controls in LLM output: {missing}")
             except Exception as e:
                 source = "fallback_rule_based"
-                fallback_reason = f"Malformed LLM output ({type(e).__name__}): {e}"
-                attrs = get_rule_based_attributes(args.baseline_action_type or metadata.get("action_type"), metadata)
+                fallback_reason = f"Malformed or outdated semantic LLM output ({type(e).__name__}): {e}"
+                semantic_controls = get_rule_based_attributes(args.baseline_action_type or metadata.get("action_type"), metadata)
 
     try:
-        attrs = validate_attributes(attrs, clip=True)
+        semantic_controls = validate_attributes(semantic_controls, schema=semantic_schema, clip=True)
     except Exception as e:
         source = "fallback_default"
-        fallback_reason = f"Attribute validation failed ({type(e).__name__}): {e}"
-        attrs = {
-            "energy_roughness": 0.5,
-            "temporal_irregularity": 0.5,
-            "modulation_texture": 0.5,
-            "decay_envelope": 0.5,
-        }
+        fallback_reason = f"Semantic control validation failed ({type(e).__name__}): {e}"
+        semantic_controls = _default_semantic_controls(semantic_schema)
 
-    pc_vector = attributes_to_pc_vector(attrs)
+    pc_vector = attributes_to_pc_vector(semantic_controls, schema=semantic_schema)
 
     _write_json(
-        output_dir / "parsed_attributes.json",
+        output_dir / "semantic_controls.json",
         {
             "source": source,
             "fallback_reason": fallback_reason,
             "action_name": metadata.get("action_name"),
             "action_type": metadata.get("action_type"),
-            "attributes": attrs,
+            "semantic_controls": semantic_controls,
             "rationale": rationale,
+            "schema_path": str(Path("semantic_control_schema.json")),
+        },
+    )
+    _write_json(
+        output_dir / "pca_control_vector.json",
+        {
+            "pc_vector": pc_vector,
+            "semantic_controls": semantic_controls,
+            "notes": {
+                "frequency": "Mapped directly to PC1.",
+                "intensity": "Mapped to inverted PC2 so higher semantic intensity produces lower PC2.",
+                "envelope_modulation": "Mapped directly to PC3.",
+                "temporal_grouping": "Mapped directly to PC4.",
+                "sharpness": "Mapped directly to PC5.",
+                "pc6_pc8": "Fixed to 0 until semantics are resolved.",
+            },
+        },
+    )
+    _write_json(
+        output_dir / "parsed_attributes.json",
+        {
+            "deprecated": True,
+            "notes": "Compatibility file; use semantic_controls.json instead.",
+            "semantic_controls": semantic_controls,
         },
     )
     _write_json(
         output_dir / "pc_vector.json",
         {
+            "deprecated": True,
+            "notes": "Compatibility file; use pca_control_vector.json instead.",
             "pc_vector": pc_vector,
-            "notes": "PC1-PC4 mapped from semantic attributes; PC5-PC8 fixed to 0 for MVP.",
         },
     )
 
@@ -240,8 +273,8 @@ def main() -> None:
             print(f"Saved: {preview}")
         print(f"Saved: {generated}")
 
-    print(f"Saved: {output_dir / 'parsed_attributes.json'}")
-    print(f"Saved: {output_dir / 'pc_vector.json'}")
+    print(f"Saved: {output_dir / 'semantic_controls.json'}")
+    print(f"Saved: {output_dir / 'pca_control_vector.json'}")
     print("MVP pipeline finished.")
 
 
