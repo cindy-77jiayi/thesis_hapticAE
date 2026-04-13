@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from baseline.rule_based_controls import get_rule_based_attributes
-from controls.mapping import attributes_to_pc_vector, validate_attributes
+from src.semantic.mapping import normalize_semantic_controls, semantic_to_pca
 from src.semantic.pc_semantics import CANONICAL_SEMANTIC_ORDER, load_semantic_schema
 
 
@@ -214,13 +214,18 @@ def main() -> None:
                 semantic_controls = get_rule_based_attributes(args.baseline_action_type or metadata.get("action_type"), metadata)
 
     try:
-        semantic_controls = validate_attributes(semantic_controls, schema=semantic_schema, clip=True)
+        semantic_controls = normalize_semantic_controls(
+            semantic_controls,
+            schema=semantic_schema,
+            clip=True,
+            require_all=True,
+        )
     except Exception as e:
         source = "fallback_default"
         fallback_reason = f"Semantic control validation failed ({type(e).__name__}): {e}"
         semantic_controls = _default_semantic_controls(semantic_schema)
 
-    pc_vector = attributes_to_pc_vector(semantic_controls, schema=semantic_schema)
+    pc_vector = [float(v) for v in semantic_to_pca(semantic_controls, schema=semantic_schema).tolist()]
 
     _write_json(
         output_dir / "semantic_controls.json",
@@ -249,23 +254,6 @@ def main() -> None:
             },
         },
     )
-    _write_json(
-        output_dir / "parsed_attributes.json",
-        {
-            "deprecated": True,
-            "notes": "Compatibility file; use semantic_controls.json instead.",
-            "semantic_controls": semantic_controls,
-        },
-    )
-    _write_json(
-        output_dir / "pc_vector.json",
-        {
-            "deprecated": True,
-            "notes": "Compatibility file; use pca_control_vector.json instead.",
-            "pc_vector": pc_vector,
-        },
-    )
-
     generated = _maybe_decode_haptic(pc_vector, args.config, args.checkpoint, args.pca_dir, output_dir)
     if generated:
         preview = _maybe_save_preview(generated, output_dir)

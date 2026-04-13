@@ -15,7 +15,7 @@ DEFAULT_ATTRS: dict[str, float] = {
 }
 
 
-# Coarse fallback presets for compatibility when no LLM semantic output is available.
+# Coarse semantic fallback presets used only when no structured LLM semantic output is available.
 ACTION_TYPE_PRESETS: dict[str, dict[str, float]] = {
     "success_confirmation": {
         "frequency": 0.55,
@@ -93,7 +93,7 @@ ACTION_TYPE_PRESETS: dict[str, dict[str, float]] = {
 def get_rule_based_attributes(action_type: str | None, metadata: dict[str, Any] | None = None) -> dict[str, float]:
     """Return canonical semantic controls for an action type.
 
-    This is only a heuristic fallback when no structured semantic output is available.
+    This is only a heuristic semantic fallback, not a separate control system.
     """
     attrs = deepcopy(DEFAULT_ATTRS)
     if action_type and action_type in ACTION_TYPE_PRESETS:
