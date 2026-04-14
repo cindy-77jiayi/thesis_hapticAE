@@ -1,4 +1,4 @@
-"""Rule-based baseline for canonical semantic haptic controls."""
+"""Rule-based fallback for canonical semantic haptic controls."""
 
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ ACTION_TYPE_PRESETS: dict[str, dict[str, float]] = {
 
 
 def get_rule_based_attributes(action_type: str | None, metadata: dict[str, Any] | None = None) -> dict[str, float]:
-    """Return canonical semantic controls for an action type.
+    """Return canonical semantic controls for a coarse event/action type.
 
     This is only a heuristic semantic fallback, not a separate control system.
     """
@@ -100,9 +100,9 @@ def get_rule_based_attributes(action_type: str | None, metadata: dict[str, Any] 
         attrs.update(ACTION_TYPE_PRESETS[action_type])
         return attrs
 
-    action_name = (metadata or {}).get("action_name", "")
-    if isinstance(action_name, str):
-        name = action_name.lower()
+    event_name = (metadata or {}).get("event_name") or (metadata or {}).get("action_name", "")
+    if isinstance(event_name, str):
+        name = event_name.lower()
         if "error" in name:
             attrs.update(ACTION_TYPE_PRESETS["error_alert"])
         elif "success" in name or "confirm" in name:

@@ -1,6 +1,6 @@
-# Haptic Signal VAE - Master's Thesis
+# Temporal Visual Event-to-Haptic Pipeline - Master's Thesis
 
-Conv1D Variational Autoencoder for vibrotactile waveform reconstruction and semantic-first control mapping.
+Conv1D Variational Autoencoder for vibrotactile waveform reconstruction from temporally grounded visual events via semantic-first control mapping.
 
 ## Project Structure
 
@@ -27,6 +27,8 @@ thesis/
 |   `-- frozen_vae_pca_workflow.ipynb
 `-- docs/
 ```
+
+The current `data/actions/` path is a legacy name. In the updated project framing, each folder should be treated as one visual-event window containing 3-5 keyframes plus metadata.
 
 ## Canonical Semantic Space
 
@@ -55,12 +57,14 @@ The Colab notebook is retained as labeling / calibration evidence and is not the
 ## Semantic-to-Haptic Pipeline
 
 ```text
-UI / multimodal input
+temporal visual event window (3-5 keyframes)
 -> LLM semantic interpretation
 -> canonical semantic controls
 -> PCA vector
 -> haptic waveform
 ```
+
+The intended runtime input is a short sequence of temporally ordered visual frames representing an event such as a water droplet falling, a phone swipe completing, or a person running past. Repeated LLM calls over consecutive frame windows can be used to assemble a final 2-3 second haptic vibration.
 
 The semantic layer exposes a normal-direction control object:
 
@@ -77,6 +81,8 @@ The semantic layer exposes a normal-direction control object:
 Internally, `intensity` is mapped to the inverted `PC2` axis.
 
 LLM-facing outputs must use canonical semantic keys only. They must not emit raw `PC1..PC8` values or low-level waveform parameters.
+
+The current semantic layer predicts one control vector per visual-event window. Longer vibrations are expected to be produced by chaining multiple temporally adjacent windows rather than by inferring a full 2-3 second waveform from a single still image.
 
 ## Training / Frozen Pipeline
 

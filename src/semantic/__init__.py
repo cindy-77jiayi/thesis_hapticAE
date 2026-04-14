@@ -1,4 +1,4 @@
-"""Semantic control layer built on top of PCA coefficients."""
+"""Semantic control layer for temporal visual event to haptic generation."""
 
 from .mapping import (
     generate_from_semantic,

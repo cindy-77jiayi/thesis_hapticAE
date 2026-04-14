@@ -1,55 +1,57 @@
-# Semantic-to-Haptic Control Predictor
+# Segment-Level Visual-to-Haptic Semantic Predictor
 
-You are given:
-- 2-3 UI action frames (`before`, `during`, `after`)
-- A short text context describing the user action and UI state transition
+You are given one temporal segment from a short visual event.
+
+- The segment duration is always 0.5 seconds.
+- You will receive 1-3 ordered keyframes for this segment.
+- The image files are supplied separately as images in this request.
+- The JSON payload below gives timing and context metadata for the same segment.
 
 Your task:
-- Infer tactile semantics from action meaning, visual dynamics, and UI state change.
-- Think in tactile / vibrotactile terms, not audio terms.
+- Infer vibrotactile semantics for this segment only.
+- Think in tactile / haptic terms, not audio terms.
 - Output normalized semantic controls in **[0, 1]**.
+- Base your answer on the temporal change implied by the ordered keyframes plus the metadata.
 
 ## Canonical Semantic Controls
 
 1. `frequency`
-- Controls oscillation density.
 - Higher value = denser / higher-frequency vibration.
 
 2. `intensity`
-- Controls overall vibration strength.
 - Higher value = stronger vibration.
-- Important: this is a semantic control, not a raw PCA value.
+- This is a semantic intensity, not a raw PCA value.
 
 3. `envelope_modulation`
-- Controls temporal energy variation.
 - Higher value = more pulsing / swelling / breathing.
 - Lower value = steadier / more continuous.
 
 4. `temporal_grouping`
-- Controls rhythmic grouping or segmentation over time.
-- Higher value = more grouped / rhythmic / segmented.
+- Higher value = more grouped / rhythmic / segmented timing.
 
 5. `sharpness`
-- Controls transient crispness and local waveform sharpness.
-- Higher value = sharper / clickier / more impulsive.
+- Higher value = sharper / clickier / more impulsive transients.
 
 ## Output Rules
 
 - Output **ONLY valid JSON**.
-- No markdown, no explanations outside JSON, no extra keys.
-- All numeric values must be in [0, 1].
-- Do **not** output `PC1`, `PC2`, or any other raw PCA coefficients.
-- `rationale` strings should be short and grounded in the given UI action/context.
+- No markdown and no explanation outside JSON.
+- Use only the required keys.
+- Every control value must be numeric and in `[0, 1]`.
+- Do **not** output raw PCA coefficients such as `PC1`, `PC2`, or waveform parameters.
+- Keep each rationale string short and visually grounded.
 
-## Required Output JSON Format
+## Required Output JSON
 
 ```json
 {
-  "frequency": 0.0,
-  "intensity": 0.0,
-  "envelope_modulation": 0.0,
-  "temporal_grouping": 0.0,
-  "sharpness": 0.0,
+  "semantic_controls": {
+    "frequency": 0.0,
+    "intensity": 0.0,
+    "envelope_modulation": 0.0,
+    "temporal_grouping": 0.0,
+    "sharpness": 0.0
+  },
   "rationale": {
     "frequency": "...",
     "intensity": "...",
@@ -60,17 +62,8 @@ Your task:
 }
 ```
 
-## Input Payload
+## Segment Metadata
 
 ```json
-{
-  "frames": {
-    "before": "{{before_image_path}}",
-    "during": "{{during_image_path}}",
-    "after": "{{after_image_path}}"
-  },
-  "action_name": "{{action_name}}",
-  "context": "{{context}}",
-  "notes": "{{notes}}"
-}
+{{segment_payload_json}}
 ```

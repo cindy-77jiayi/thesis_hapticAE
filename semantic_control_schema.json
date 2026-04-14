@@ -1,6 +1,6 @@
 {
   "version": "semantic_v1",
-  "description": "Canonical semantic control schema for vibrotactile generation on top of PCA coefficients.",
+  "description": "Canonical semantic control schema for temporally grounded visual-event-to-vibrotactile generation on top of PCA coefficients.",
   "semantic_controls": [
     {
       "canonical_name": "frequency",
@@ -213,7 +213,7 @@
       "PC8"
     ],
     "notes": [
-      "LLM outputs semantic controls only.",
+      "LLM outputs semantic controls only from ordered visual event windows.",
       "LLM must not output raw PCA coefficients or low-level waveform parameters."
     ]
   }
