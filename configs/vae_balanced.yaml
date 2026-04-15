@@ -20,6 +20,8 @@ data:
   use_minmax: false
   train_split: 0.8
   analysis_batch_size: 4
+  val_random_seek: false
+  val_sample_with_replacement: false
 
 model:
   latent_dim: 20

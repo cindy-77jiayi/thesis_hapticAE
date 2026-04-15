@@ -78,18 +78,22 @@ def build_dataloaders(
         )
     else:
         val_files = [audio_files[i] for i in perm[split:]]
+        train_random_seek = data_cfg.get("segment_mode", "energy") == "hapticgen"
+        train_sample_with_replacement = data_cfg.get("segment_mode", "energy") == "hapticgen"
+        val_random_seek = data_cfg.get("val_random_seek", False)
+        val_sample_with_replacement = data_cfg.get("val_sample_with_replacement", False)
         train_ds = AudioSignalDataset(
             train_files,
-            random_seek=data_cfg.get("segment_mode", "energy") == "hapticgen",
-            sample_with_replacement=data_cfg.get("segment_mode", "energy") == "hapticgen",
+            random_seek=train_random_seek,
+            sample_with_replacement=train_sample_with_replacement,
             num_samples=data_cfg.get("train_num_samples") or len(train_files),
             seed=seed,
             **ds_kwargs,
         )
         val_ds = AudioSignalDataset(
             val_files,
-            random_seek=data_cfg.get("segment_mode", "energy") == "hapticgen",
-            sample_with_replacement=data_cfg.get("segment_mode", "energy") == "hapticgen",
+            random_seek=val_random_seek,
+            sample_with_replacement=val_sample_with_replacement,
             num_samples=data_cfg.get("val_num_samples") or len(val_files),
             seed=seed + 10_000,
             **ds_kwargs,
