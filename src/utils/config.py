@@ -20,6 +20,12 @@ _DEFAULTS = {
         "use_minmax": False,
         "train_split": 0.8,
         "analysis_batch_size": 4,
+        "train_random_seek": True,
+        "train_sample_with_replacement": False,
+        "val_random_seek": False,
+        "val_sample_with_replacement": False,
+        "train_file_list": None,
+        "val_file_list": None,
     },
 
     "model": {

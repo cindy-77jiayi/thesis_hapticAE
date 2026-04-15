@@ -1,5 +1,7 @@
 """Shared data loading and model construction helpers for scripts."""
 
+from pathlib import Path
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -7,6 +9,20 @@ from torch.utils.data import DataLoader
 
 from .dataset import AudioSignalDataset
 from .preprocessing import collect_audio_files, estimate_global_rms
+
+
+def _read_file_list(path: str | None) -> list[str] | None:
+    """Read newline-delimited audio paths, ignoring empty lines."""
+    if not path:
+        return None
+    file_path = Path(path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"Configured file list does not exist: {path}")
+    with file_path.open("r", encoding="utf-8") as fp:
+        entries = [line.strip() for line in fp if line.strip()]
+    if not entries:
+        raise ValueError(f"Configured file list is empty: {path}")
+    return entries
 
 
 def build_dataloaders(
@@ -41,7 +57,20 @@ def build_dataloaders(
     N = len(audio_files)
     perm = np.random.permutation(N)
     split = int(data_cfg["train_split"] * N)
-    train_files = [audio_files[i] for i in perm[:split]]
+
+    configured_train_files = _read_file_list(data_cfg.get("train_file_list"))
+    configured_val_files = _read_file_list(data_cfg.get("val_file_list"))
+    if (configured_train_files is None) != (configured_val_files is None):
+        raise ValueError(
+            "Both data.train_file_list and data.val_file_list must be set together",
+        )
+
+    if configured_train_files is not None and configured_val_files is not None:
+        train_files = configured_train_files
+        val_files = configured_val_files
+    else:
+        train_files = [audio_files[i] for i in perm[:split]]
+        val_files = [audio_files[i] for i in perm[split:]]
 
     normalize_mode = data_cfg.get("normalize_mode", "global_rms")
     global_rms = (
@@ -77,9 +106,15 @@ def build_dataloaders(
             all_ds, batch_size=bs, shuffle=False, drop_last=False,
         )
     else:
-        val_files = [audio_files[i] for i in perm[split:]]
-        train_random_seek = data_cfg.get("segment_mode", "energy") == "hapticgen"
-        train_sample_with_replacement = data_cfg.get("segment_mode", "energy") == "hapticgen"
+        segment_mode = data_cfg.get("segment_mode", "energy")
+        train_random_seek = data_cfg.get(
+            "train_random_seek",
+            segment_mode == "hapticgen",
+        )
+        train_sample_with_replacement = data_cfg.get(
+            "train_sample_with_replacement",
+            segment_mode == "hapticgen",
+        )
         val_random_seek = data_cfg.get("val_random_seek", False)
         val_sample_with_replacement = data_cfg.get("val_sample_with_replacement", False)
         train_ds = AudioSignalDataset(
