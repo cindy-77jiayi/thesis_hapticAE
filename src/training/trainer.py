@@ -11,10 +11,8 @@ from tqdm import tqdm
 
 from .losses import (
     amplitude_loss,
-    fft_mag_mse,
     kl_divergence_free_bits,
     multiscale_stft_loss,
-    multi_scale_spectral_loss,
 )
 from .schedulers import cyclical_beta_schedule
 
@@ -44,14 +42,11 @@ class Trainer:
         # Loss weights
         loss_cfg = config.get("loss", {})
         self.w_l1 = loss_cfg.get("l1_weight", 0.2)
-        self.w_spec = loss_cfg.get("spectral_weight", 0.15)
+        self.w_stft = loss_cfg.get("stft_loss_weight", 0.15)
         self.w_amp = loss_cfg.get("amplitude_weight", 0.5)
-        self.w_fft = loss_cfg.get("fft_weight", 0.0)
         self.clamp_range = loss_cfg.get("clamp_range", 3.0)
         self.recon_time_weight = loss_cfg.get("recon_time_weight", 1.0)
 
-        # Optional configurable multi-scale STFT loss (legacy path remains default).
-        self.use_multiscale_stft_loss = loss_cfg.get("use_multiscale_stft_loss", False)
         self.stft_scales = loss_cfg.get("stft_scales", [128, 256, 512, 1024])
         self.stft_hop_lengths = loss_cfg.get("stft_hop_lengths", None)
         self.stft_win_lengths = loss_cfg.get("stft_win_lengths", None)
@@ -113,9 +108,8 @@ class Trainer:
         time_recon = mse + self.w_l1 * l1
         recon = self.recon_time_weight * time_recon
 
-        # When enabled, configurable multi-scale STFT replaces legacy spectral loss.
-        if self.use_multiscale_stft_loss:
-            recon = recon + multiscale_stft_loss(
+        if self.w_stft > 0:
+            recon = recon + self.w_stft * multiscale_stft_loss(
                 x_hat, x,
                 stft_scales=self.stft_scales,
                 stft_hop_lengths=self.stft_hop_lengths,
@@ -125,13 +119,9 @@ class Trainer:
                 stft_log_weight=self.stft_log_weight,
                 eps=self.stft_eps,
             )
-        elif self.w_spec > 0:
-            recon = recon + self.w_spec * multi_scale_spectral_loss(x_hat, x)
 
         if self.w_amp > 0:
             recon = recon + self.w_amp * amplitude_loss(x_hat, x)
-        if self.w_fft > 0:
-            recon = recon + self.w_fft * fft_mag_mse(x_hat, x)
 
         loss = recon
 

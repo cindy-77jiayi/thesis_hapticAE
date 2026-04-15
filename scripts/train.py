@@ -1,7 +1,7 @@
-"""CLI entry point for training haptic signal models.
+"""CLI entry point for training audio autoencoder models.
 
 Usage:
-    python scripts/train.py --config configs/vae_default.yaml --data_dir /path/to/wavs --output_dir outputs
+    python scripts/train.py --config configs/vae_default.yaml --data_dir /path/to/WavCaps --output_dir outputs
 """
 
 import argparse
@@ -18,9 +18,14 @@ from src.training.trainer import Trainer
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train haptic signal model")
+    parser = argparse.ArgumentParser(description="Train audio autoencoder model")
     parser.add_argument("--config", type=str, required=True, help="Path to YAML config file")
-    parser.add_argument("--data_dir", type=str, required=True, help="Root directory containing WAV files")
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        required=True,
+        help="Root directory containing prepared haptic audio files",
+    )
     parser.add_argument("--output_dir", type=str, default="outputs", help="Directory for checkpoints and logs")
     args = parser.parse_args()
 
@@ -30,9 +35,9 @@ def main():
     set_seed(config.get("seed", 42))
 
     # --- Data ---
-    print(f"📂 Collecting WAV files from: {args.data_dir}")
+    print(f"📂 Collecting audio files from: {args.data_dir}")
     data = build_dataloaders(config, args.data_dir)
-    print(f"   Found {len(data['wav_files'])} clean WAV files")
+    print(f"   Found {len(data['audio_files'])} audio files")
     print(f"   Global RMS: {data['global_rms']:.6f}")
     print(f"   Batches: train={len(data['train_loader'])}, val={len(data['val_loader'])}")
 

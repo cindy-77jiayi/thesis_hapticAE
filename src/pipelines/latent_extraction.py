@@ -57,7 +57,7 @@ def load_or_fit_pca(
     Args:
         model: Trained VAE (already on device, eval mode).
         config: Parsed YAML config dict.
-        data_dir: Root of hapticgen-dataset.
+        data_dir: Root of dataset audio files.
         device: torch device.
         pca_dir: If provided and contains pca_pipe.pkl, load from there.
         n_components: Number of PCA components.
@@ -78,7 +78,7 @@ def load_or_fit_pca(
     from src.data.loaders import build_dataloaders
 
     data = build_dataloaders(config, data_dir, batch_size=64, full_dataset=True)
-    print(f"   Dataset size: {len(data['wav_files'])}")
+    print(f"   Dataset size: {len(data['audio_files'])}")
 
     Z = extract_latent_vectors(model, data["all_loader"], device)
     if save_dir:

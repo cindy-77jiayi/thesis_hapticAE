@@ -9,7 +9,7 @@ Steps:
 Usage:
     python scripts/validate_extended.py \
         --config configs/vae_balanced.yaml \
-        --data_dir /path/to/wavs \
+        --data_dir data/wavcaps_haptic_prepared \
         --checkpoint outputs/vae_balanced/best_model.pt \
         --output_dir outputs/validation \
         --pca_dir outputs/pca \
@@ -35,7 +35,11 @@ from src.utils.seed import set_seed
 from src.data.loaders import build_dataloaders, build_model, load_checkpoint
 from src.pipelines.latent_extraction import load_or_fit_pca, extract_latent_vectors
 from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis
-from src.pipelines.control_spec import compute_control_ranges, METRIC_LABELS
+from src.pipelines.control_spec import (
+    METRIC_LABELS,
+    compute_control_ranges,
+    summarize_control_metrics,
+)
 from src.eval.pc_validation import (
     compute_monotonicity_matrix,
     compute_cross_influence,
@@ -296,8 +300,9 @@ def generate_table_v2(bindings, alignment, evr, ref_comparison, save_path):
             for m in top
         )
 
-        label = _auto_label(top)
-        effect = _auto_effect(top)
+        summary = summarize_control_metrics(top)
+        label = summary["label"]
+        effect = summary["effect"]
 
         lines.append(f"| {pc} | {var_pct} | {metrics_str} | {label} | {effect} |")
 
@@ -337,68 +342,6 @@ def generate_table_v2(bindings, alignment, evr, ref_comparison, save_path):
     with open(save_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     print(f"  Saved: {save_path}")
-
-
-def _auto_label(top_metrics):
-    """Generate a data-driven semantic label from top correlated metrics."""
-    if not top_metrics:
-        return "undifferentiated temporal variation"
-
-    keywords = set()
-    for m in top_metrics:
-        name = m["metric"]
-        if "rms" in name or "energy" in name or "amplitude" in name:
-            keywords.add("energy")
-        if "spectral" in name or "centroid" in name or "rolloff" in name or "band_" in name:
-            keywords.add("spectral shape")
-        if "decay" in name or "late_early" in name or "duration" in name:
-            keywords.add("decay dynamics")
-        if "attack" in name or "transient" in name:
-            keywords.add("attack character")
-        if "onset" in name or "ioi" in name or "modulation" in name:
-            keywords.add("temporal patterning")
-        if "flatness" in name or "slope" in name:
-            keywords.add("spectral texture")
-        if "envelope" in name and "entropy" in name:
-            keywords.add("envelope complexity")
-        if "am_modulation" in name or "short_term" in name:
-            keywords.add("amplitude variation")
-        if "crest" in name:
-            keywords.add("impulsiveness")
-        if "zero_crossing" in name or "gap" in name:
-            keywords.add("continuity")
-
-    if not keywords:
-        keywords.add("fine temporal structure")
-
-    return " / ".join(sorted(keywords))
-
-
-def _auto_effect(top_metrics):
-    """Generate example perceptual effect description."""
-    if not top_metrics:
-        return "subtle variation"
-    m = top_metrics[0]
-    name = m["metric"]
-    direction = "increases" if m["rho"] > 0 else "decreases"
-
-    effects = {
-        "rms_energy": f"overall intensity {direction}",
-        "spectral_centroid_hz": f"brightness {direction}",
-        "spectral_rolloff_hz": f"spectral bandwidth {direction}",
-        "spectral_slope": f"spectral tilt {direction}",
-        "spectral_flatness": f"tonality {'decreases' if direction == 'increases' else 'increases'}",
-        "envelope_decay_slope_dBps": f"sustain {direction}",
-        "attack_time_s": f"attack {'sharpens' if direction == 'decreases' else 'softens'}",
-        "am_modulation_index": f"amplitude modulation {direction}",
-        "short_term_variance": f"energy fluctuation {direction}",
-        "onset_density_ps": f"event rate {direction}",
-        "envelope_entropy_bits": f"envelope complexity {direction}",
-        "crest_factor": f"impulsiveness {direction}",
-    }
-    return effects.get(name, f"{name.replace('_', ' ')} {direction}")
-
-
 # ===================================================================
 # Main
 # ===================================================================

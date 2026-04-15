@@ -1,7 +1,7 @@
 """CLI entry point for evaluating a trained model.
 
 Usage:
-    python scripts/eval.py --config configs/vae_default.yaml --data_dir /path/to/wavs --checkpoint outputs/run/best_model.pt --output_dir outputs/eval
+    python scripts/eval.py --config configs/vae_default.yaml --data_dir /path/to/WavCaps --checkpoint outputs/run/best_model.pt --output_dir outputs/eval
 """
 
 import argparse
@@ -22,9 +22,9 @@ from src.eval.visualize import plot_loss_curves, plot_waveform_comparison
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate trained haptic model")
+    parser = argparse.ArgumentParser(description="Evaluate trained audio model")
     parser.add_argument("--config", type=str, required=True)
-    parser.add_argument("--data_dir", type=str, required=True)
+    parser.add_argument("--data_dir", type=str, required=True, help="Prepared haptic dataset directory")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint .pt file")
     parser.add_argument("--output_dir", type=str, default="outputs/eval")
     parser.add_argument("--n_samples", type=int, default=10)

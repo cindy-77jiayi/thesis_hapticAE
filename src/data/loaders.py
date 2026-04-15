@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from .preprocessing import collect_clean_wavs, estimate_global_rms
-from .dataset import HapticWavDataset
+from .dataset import AudioSignalDataset
+from .preprocessing import collect_audio_files, estimate_global_rms
 
 
 def build_dataloaders(
@@ -19,35 +19,28 @@ def build_dataloaders(
 
     Args:
         config: Parsed YAML config dict.
-        data_dir: Root directory of hapticgen-dataset.
+        data_dir: Root directory of dataset audio files.
         batch_size: Override config batch_size if provided.
         full_dataset: If True, return a single loader over all files
             (used for latent extraction). Train/val loaders are omitted.
 
     Returns:
-        Dict with keys: 'wav_files', 'global_rms', and either
+        Dict with keys: 'audio_files', 'global_rms', and either
         'train_loader'/'val_loader' or 'all_loader'.
     """
     data_cfg = config["data"]
     bs = batch_size or config.get("training", {}).get("batch_size", 32)
 
-    accepted_models = set(data_cfg.get("accepted_models", ["HapticGen"]))
-    accepted_votes = set(data_cfg.get("accepted_votes", [1]))
-    include_subdirs_cfg = data_cfg.get("include_subdirs")
-    include_subdirs = set(include_subdirs_cfg) if include_subdirs_cfg else None
-
-    wav_files = collect_clean_wavs(
+    audio_files = collect_audio_files(
         data_dir,
-        accepted_models=accepted_models,
-        accepted_votes=accepted_votes,
-        include_subdirs=include_subdirs,
+        extensions=data_cfg.get("extensions"),
     )
-    assert len(wav_files) > 0, f"No WAV files found in {data_dir}"
+    assert len(audio_files) > 0, f"No audio files found in {data_dir}"
 
-    N = len(wav_files)
+    N = len(audio_files)
     perm = np.random.permutation(N)
     split = int(data_cfg["train_split"] * N)
-    train_files = [wav_files[i] for i in perm[:split]]
+    train_files = [audio_files[i] for i in perm[:split]]
 
     global_rms = estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
 
@@ -59,17 +52,17 @@ def build_dataloaders(
         use_minmax=data_cfg.get("use_minmax", False),
     )
 
-    result = {"wav_files": wav_files, "global_rms": global_rms}
+    result = {"audio_files": audio_files, "global_rms": global_rms}
 
     if full_dataset:
-        all_ds = HapticWavDataset(wav_files, **ds_kwargs)
+        all_ds = AudioSignalDataset(audio_files, **ds_kwargs)
         result["all_loader"] = DataLoader(
             all_ds, batch_size=bs, shuffle=False, drop_last=False,
         )
     else:
-        val_files = [wav_files[i] for i in perm[split:]]
-        train_ds = HapticWavDataset(train_files, **ds_kwargs)
-        val_ds = HapticWavDataset(val_files, **ds_kwargs)
+        val_files = [audio_files[i] for i in perm[split:]]
+        train_ds = AudioSignalDataset(train_files, **ds_kwargs)
+        val_ds = AudioSignalDataset(val_files, **ds_kwargs)
         result["train_loader"] = DataLoader(
             train_ds, batch_size=bs, shuffle=True, drop_last=True,
         )

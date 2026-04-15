@@ -3,7 +3,7 @@
 Usage:
     python scripts/extract_and_pca.py \
         --config configs/vae_default.yaml \
-        --data_dir /path/to/wavs \
+        --data_dir /path/to/WavCaps \
         --checkpoint outputs/vae_default/best_model.pt \
         --output_dir outputs/pca \
         --n_components 8
@@ -29,7 +29,7 @@ from src.pipelines.pca_control import fit_pca_pipeline, sweep_axis, plot_sweep
 def main():
     parser = argparse.ArgumentParser(description="Extract latents and fit PCA")
     parser.add_argument("--config", type=str, required=True)
-    parser.add_argument("--data_dir", type=str, required=True)
+    parser.add_argument("--data_dir", type=str, required=True, help="Prepared haptic dataset directory")
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--output_dir", type=str, default="outputs/pca")
     parser.add_argument("--n_components", type=int, default=8)
@@ -44,7 +44,7 @@ def main():
 
     # --- Data (full dataset for extraction) ---
     data = build_dataloaders(config, args.data_dir, batch_size=64, full_dataset=True)
-    print(f"   Dataset size: {len(data['wav_files'])}")
+    print(f"   Dataset size: {len(data['audio_files'])}")
 
     # --- Model ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

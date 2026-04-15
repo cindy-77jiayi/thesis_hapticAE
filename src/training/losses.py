@@ -1,34 +1,8 @@
-"""Loss functions for haptic signal reconstruction."""
+"""Loss functions for audio reconstruction."""
 
-import torch
 from collections.abc import Sequence
 
-
-def multi_scale_spectral_loss(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-    """Multi-scale spectral loss comparing STFT magnitudes at multiple resolutions.
-
-    Computes both L1 magnitude distance and log-magnitude distance
-    across FFT sizes [128, 256, 512, 1024].
-    """
-    loss = torch.tensor(0.0, device=x.device)
-    x_1d = x.squeeze(1)
-    xh_1d = x_hat.squeeze(1)
-
-    for n_fft in [128, 256, 512, 1024]:
-        window = torch.hann_window(n_fft, device=x.device)
-        hop = n_fft // 4
-        x_spec = torch.stft(x_1d, n_fft, hop_length=hop, return_complex=True, window=window)
-        xh_spec = torch.stft(xh_1d, n_fft, hop_length=hop, return_complex=True, window=window)
-
-        x_mag = torch.abs(x_spec)
-        xh_mag = torch.abs(xh_spec)
-
-        loss = loss + torch.mean(torch.abs(x_mag - xh_mag))
-        loss = loss + torch.mean(torch.abs(
-            torch.log(x_mag + 1e-7) - torch.log(xh_mag + 1e-7)
-        ))
-
-    return loss / 8  # 4 scales x 2 losses
+import torch
 
 
 def multiscale_stft_loss(
@@ -66,6 +40,7 @@ def multiscale_stft_loss(
     x_1d = x.squeeze(1)
     xh_1d = x_hat.squeeze(1)
     total = torch.tensor(0.0, device=x.device)
+    total_scale_weight = 0.0
 
     for n_fft, hop, win, scale_w in zip(stft_scales, hops, wins, weights):
         n_fft_i = int(n_fft)
@@ -97,9 +72,14 @@ def multiscale_stft_loss(
                 torch.abs(torch.log(x_mag + eps) - torch.log(xh_mag + eps))
             )
 
-        total = total + float(scale_w) * scale_loss
+        scale_weight = float(scale_w)
+        total = total + scale_weight * scale_loss
+        total_scale_weight += scale_weight
 
-    return total
+    if total_scale_weight <= 0:
+        raise ValueError("stft_scale_weights must sum to a positive value")
+
+    return total / total_scale_weight
 
 
 def amplitude_loss(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
@@ -125,19 +105,3 @@ def kl_divergence_free_bits(
     kl_per_dim = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
     kl_per_dim = torch.clamp(kl_per_dim, min=free_bits)
     return kl_per_dim.sum(dim=1).mean()
-
-
-def fft_mag_mse(
-    x_hat: torch.Tensor, x: torch.Tensor, eps: float = 1e-8, use_log: bool = True
-) -> torch.Tensor:
-    """Single-scale FFT magnitude MSE (used by non-VAE AE baselines)."""
-    x_fft = torch.fft.rfft(x)
-    xh_fft = torch.fft.rfft(x_hat)
-    x_mag = torch.abs(x_fft)
-    xh_mag = torch.abs(xh_fft)
-
-    if use_log:
-        x_mag = torch.log(x_mag + eps)
-        xh_mag = torch.log(xh_mag + eps)
-
-    return torch.mean((x_mag - xh_mag) ** 2)

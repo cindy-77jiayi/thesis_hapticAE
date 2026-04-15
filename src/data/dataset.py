@@ -1,4 +1,4 @@
-"""PyTorch Dataset classes for haptic signal data."""
+"""PyTorch Dataset classes for audio signal data."""
 
 import torch
 from torch.utils.data import Dataset
@@ -6,8 +6,8 @@ from torch.utils.data import Dataset
 from .preprocessing import load_segment_energy
 
 
-class HapticWavDataset(Dataset):
-    """Dataset that loads energy-rich segments from haptic WAV files."""
+class AudioSignalDataset(Dataset):
+    """Dataset that loads energy-rich segments from audio files."""
 
     def __init__(
         self,

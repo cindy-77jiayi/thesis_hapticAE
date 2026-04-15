@@ -12,6 +12,7 @@ _DEFAULTS = {
         "sr": 8000,
         "T": 4000,
         "scale": 0.25,
+        "extensions": [".wav", ".flac"],
         "use_minmax": False,
         "train_split": 0.8,
     },
@@ -48,10 +49,17 @@ _DEFAULTS = {
 
     "loss": {
         "l1_weight": 0.2,
-        "spectral_weight": 0.15,
+        "stft_loss_weight": 0.15,
         "amplitude_weight": 0.5,
-        "fft_weight": 0.0,
         "clamp_range": 3.0,
+        "recon_time_weight": 1.0,
+        "stft_scales": [128, 256, 512, 1024],
+        "stft_hop_lengths": None,
+        "stft_win_lengths": None,
+        "stft_scale_weights": None,
+        "stft_linear_weight": 1.0,
+        "stft_log_weight": 1.0,
+        "stft_eps": 1e-7,
     },
 
     "kl": {

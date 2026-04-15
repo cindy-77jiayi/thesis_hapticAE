@@ -10,7 +10,7 @@ It produces:
 Usage:
     python scripts/build_controls.py \
         --config configs/vae_compact.yaml \
-        --data_dir /path/to/wavs \
+        --data_dir data/wavcaps_haptic_prepared \
         --checkpoint outputs/vae_compact/best_model.pt \
         --output_dir outputs/controls
 """
