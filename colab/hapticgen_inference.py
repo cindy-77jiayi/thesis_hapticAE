@@ -91,15 +91,13 @@ def main() -> None:
     wav_tensor = generated[0].detach().cpu()
 
     wav_path = output_dir / "generated"
-    audio_write(
-        str(wav_path),
+    wav_file = audio_write(
+        wav_path,
         wav_tensor,
         model.sample_rate,
         format="wav",
-        add_suffix=False,
         normalize=False,
     )
-    wav_file = output_dir / "generated.wav"
     waveform_path = save_waveform_plot(wav_tensor, model.sample_rate, output_dir / "generated_waveform.png")
 
     metadata = {
