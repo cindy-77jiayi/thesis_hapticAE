@@ -10,11 +10,16 @@ _DEFAULTS = {
 
     "data": {
         "sr": 8000,
-        "T": 4000,
-        "scale": 0.25,
+        "T": 80000,
+        "scale": 1.0,
         "extensions": [".wav", ".flac"],
+        "segment_mode": "hapticgen",
+        "normalize_mode": "none",
+        "min_segment_ratio": 1.0,
+        "clip_range": None,
         "use_minmax": False,
         "train_split": 0.8,
+        "analysis_batch_size": 4,
     },
 
     "model": {
@@ -28,7 +33,7 @@ _DEFAULTS = {
     },
 
     "training": {
-        "batch_size": 32,
+        "batch_size": 4,
         "epochs": 100,
         "patience": 15,
         "min_delta": 1e-4,

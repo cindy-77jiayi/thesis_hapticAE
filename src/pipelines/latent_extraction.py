@@ -77,7 +77,8 @@ def load_or_fit_pca(
 
     from src.data.loaders import build_dataloaders
 
-    data = build_dataloaders(config, data_dir, batch_size=64, full_dataset=True)
+    analysis_batch_size = int(config["data"].get("analysis_batch_size", 4))
+    data = build_dataloaders(config, data_dir, batch_size=analysis_batch_size, full_dataset=True)
     print(f"   Dataset size: {len(data['audio_files'])}")
 
     Z = extract_latent_vectors(model, data["all_loader"], device)

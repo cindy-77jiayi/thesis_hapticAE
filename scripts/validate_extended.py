@@ -464,7 +464,8 @@ def main():
                 continue
 
             load_checkpoint(m, ckpt, device)
-            seed_data = build_dataloaders(cfg, args.data_dir, batch_size=64, full_dataset=True)
+            analysis_batch_size = int(cfg["data"].get("analysis_batch_size", 4))
+            seed_data = build_dataloaders(cfg, args.data_dir, batch_size=analysis_batch_size, full_dataset=True)
             Z_seed = extract_latent_vectors(m, seed_data["all_loader"], device)
             pipe_seed, _ = fit_pca_pipeline(Z_seed, n_components=args.n_components)
             seed_pipes[seed] = pipe_seed

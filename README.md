@@ -9,7 +9,7 @@ The maintained data flow is now:
    - automated amplitude filtering
    - prompt variant augmentation
    - audio-to-haptic conversion
-3. Train VAE / AE on the prepared haptic waveforms.
+3. Train VAE / AE on 10-second prepared haptic waveforms at 8 kHz.
 4. Run latent extraction, PCA, and validation.
 
 The `llm/` assets and `run_llm_to_haptic.py` remain outside this training pipeline.
@@ -90,3 +90,4 @@ python scripts/validate_extended.py \
 - The preparation script mirrors HapticGen's published baseline ideas rather than copying their full training stack.
 - Prepared samples are written as `.wav` files with `.am1.json` sidecar metadata and dataset-level `manifest.jsonl` / `rejected.jsonl`.
 - Training and PCA scripts operate on the prepared output directory, not raw WavCaps directly.
+- The maintained training setup now uses fixed 10-second windows (`T=80000` at `8 kHz`) with HapticGen-style random segment sampling instead of short energy-picked crops.

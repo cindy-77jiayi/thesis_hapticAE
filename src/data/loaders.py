@@ -30,6 +30,7 @@ def build_dataloaders(
     """
     data_cfg = config["data"]
     bs = batch_size or config.get("training", {}).get("batch_size", 32)
+    seed = int(config.get("seed", 42))
 
     audio_files = collect_audio_files(
         data_dir,
@@ -42,7 +43,12 @@ def build_dataloaders(
     split = int(data_cfg["train_split"] * N)
     train_files = [audio_files[i] for i in perm[:split]]
 
-    global_rms = estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
+    normalize_mode = data_cfg.get("normalize_mode", "global_rms")
+    global_rms = (
+        estimate_global_rms(train_files, n=200, sr_expect=data_cfg["sr"])
+        if normalize_mode == "global_rms"
+        else 1.0
+    )
 
     ds_kwargs = dict(
         T=data_cfg["T"],
@@ -50,19 +56,44 @@ def build_dataloaders(
         global_rms=global_rms,
         scale=data_cfg["scale"],
         use_minmax=data_cfg.get("use_minmax", False),
+        segment_mode=data_cfg.get("segment_mode", "energy"),
+        min_segment_ratio=data_cfg.get("min_segment_ratio", 1.0),
+        normalize_mode=normalize_mode,
+        clip_range=tuple(data_cfg["clip_range"]) if data_cfg.get("clip_range") is not None else None,
     )
 
     result = {"audio_files": audio_files, "global_rms": global_rms}
 
     if full_dataset:
-        all_ds = AudioSignalDataset(audio_files, **ds_kwargs)
+        all_ds = AudioSignalDataset(
+            audio_files,
+            random_seek=False,
+            sample_with_replacement=False,
+            num_samples=len(audio_files),
+            seed=seed,
+            **ds_kwargs,
+        )
         result["all_loader"] = DataLoader(
             all_ds, batch_size=bs, shuffle=False, drop_last=False,
         )
     else:
         val_files = [audio_files[i] for i in perm[split:]]
-        train_ds = AudioSignalDataset(train_files, **ds_kwargs)
-        val_ds = AudioSignalDataset(val_files, **ds_kwargs)
+        train_ds = AudioSignalDataset(
+            train_files,
+            random_seek=data_cfg.get("segment_mode", "energy") == "hapticgen",
+            sample_with_replacement=data_cfg.get("segment_mode", "energy") == "hapticgen",
+            num_samples=data_cfg.get("train_num_samples") or len(train_files),
+            seed=seed,
+            **ds_kwargs,
+        )
+        val_ds = AudioSignalDataset(
+            val_files,
+            random_seek=data_cfg.get("segment_mode", "energy") == "hapticgen",
+            sample_with_replacement=data_cfg.get("segment_mode", "energy") == "hapticgen",
+            num_samples=data_cfg.get("val_num_samples") or len(val_files),
+            seed=seed + 10_000,
+            **ds_kwargs,
+        )
         result["train_loader"] = DataLoader(
             train_ds, batch_size=bs, shuffle=True, drop_last=True,
         )

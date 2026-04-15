@@ -69,7 +69,8 @@ def main():
         print(f"{'='*60}")
 
         data_cfg = config["data"]
-        data = build_dataloaders(config, args.data_dir, batch_size=64, full_dataset=True)
+        analysis_batch_size = int(config["data"].get("analysis_batch_size", 4))
+        data = build_dataloaders(config, args.data_dir, batch_size=analysis_batch_size, full_dataset=True)
 
         model = build_model(config, device)
         ckpt_path = os.path.join(args.output_base, run_name, "best_model.pt")

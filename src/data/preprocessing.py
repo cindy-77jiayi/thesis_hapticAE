@@ -121,3 +121,63 @@ def load_segment_energy(
         seg = minmax_norm(seg)
 
     return seg.astype(np.float32)
+
+
+def load_segment_hapticgen(
+    path: str,
+    T: int,
+    sr_expect: int = 8000,
+    normalize_mode: str = "none",
+    global_rms: float = 1.0,
+    scale: float = 1.0,
+    use_minmax: bool = False,
+    random_seek: bool = True,
+    seed: int | None = None,
+    min_segment_ratio: float = 1.0,
+    clip_range: tuple[float, float] | None = None,
+) -> np.ndarray:
+    """Load a fixed-length segment using HapticGen-style random seek + padding.
+
+    This mirrors the important AudioCraft/HapticGen data assumptions:
+    - fixed segment duration
+    - random segment position for long files
+    - zero-padding for short files
+    - no duration-weighted sampling inside the waveform loader
+    """
+    y, sr = librosa.load(path, sr=None, mono=True)
+    if sr != sr_expect:
+        y = librosa.resample(y, orig_sr=sr, target_sr=sr_expect)
+
+    if len(y) >= T:
+        max_seek = max(0, len(y) - int(T * min_segment_ratio))
+        if random_seek and max_seek > 0:
+            if seed is None:
+                start = np.random.randint(0, max_seek + 1)
+            else:
+                rng = np.random.default_rng(seed)
+                start = int(rng.integers(0, max_seek + 1))
+        else:
+            start = 0
+        seg = y[start : start + T]
+    else:
+        seg = y
+
+    if len(seg) < T:
+        seg = np.pad(seg, (0, T - len(seg)))
+
+    seg = seg.astype(np.float32)
+
+    if normalize_mode == "global_rms":
+        seg = seg / (global_rms + 1e-6)
+    elif normalize_mode not in {"none", "global_rms"}:
+        raise ValueError(f"Unknown normalize_mode: {normalize_mode}")
+
+    seg = seg * scale
+
+    if clip_range is not None:
+        seg = np.clip(seg, clip_range[0], clip_range[1])
+
+    if use_minmax:
+        seg = minmax_norm(seg)
+
+    return seg.astype(np.float32)

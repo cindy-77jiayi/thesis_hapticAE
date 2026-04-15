@@ -8,11 +8,16 @@ run_name: ae_matched
 
 data:
   sr: 8000
-  T: 4000
-  scale: 0.25
+  T: 80000
+  scale: 1.0
   extensions: [".flac", ".wav"]
+  segment_mode: hapticgen
+  normalize_mode: none
+  min_segment_ratio: 1.0
+  clip_range: null
   use_minmax: false
   train_split: 0.8
+  analysis_batch_size: 4
 
 model:
   latent_dim: 24
@@ -23,7 +28,7 @@ model:
   norm: group
 
 training:
-  batch_size: 32
+  batch_size: 4
   epochs: 200
   patience: 30
   min_delta: 0.0001

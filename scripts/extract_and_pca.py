@@ -43,7 +43,8 @@ def main():
     data_cfg = config["data"]
 
     # --- Data (full dataset for extraction) ---
-    data = build_dataloaders(config, args.data_dir, batch_size=64, full_dataset=True)
+    analysis_batch_size = int(config["data"].get("analysis_batch_size", 4))
+    data = build_dataloaders(config, args.data_dir, batch_size=analysis_batch_size, full_dataset=True)
     print(f"   Dataset size: {len(data['audio_files'])}")
 
     # --- Model ---
