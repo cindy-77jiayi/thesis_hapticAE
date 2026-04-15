@@ -49,6 +49,7 @@ def prepare_wavcaps_haptic_dataset(
     n_variants: int = 4,
     openai_model: str = "gpt-4o-mini",
     limit: int | None = None,
+    progress_every: int = 500,
 ) -> dict[str, int]:
     """Convert WavCaps audio clips into a filtered haptic-style dataset."""
     metadata_root = Path(metadata_dir)
@@ -70,6 +71,11 @@ def prepare_wavcaps_haptic_dataset(
                 break
 
             scanned += 1
+            if progress_every > 0 and scanned % progress_every == 0:
+                print(
+                    f"[prepare] scanned={scanned} accepted={accepted} rejected={rejected}",
+                    flush=True,
+                )
             caption = extract_caption(record["payload"])
             if not caption:
                 rejected += 1
@@ -82,8 +88,24 @@ def prepare_wavcaps_haptic_dataset(
                 rejected_fp.write(json.dumps({"reason": "missing_audio", **record}, ensure_ascii=False) + "\n")
                 continue
 
-            waveform, input_sr = librosa.load(audio_path, sr=None, mono=True)
-            haptic_wave = audio_to_haptic(waveform, input_sr=input_sr, output_sr=output_sr)
+            try:
+                waveform, input_sr = librosa.load(audio_path, sr=None, mono=True)
+                haptic_wave = audio_to_haptic(waveform, input_sr=input_sr, output_sr=output_sr)
+            except Exception as exc:
+                rejected += 1
+                rejected_fp.write(
+                    json.dumps(
+                        {
+                            "reason": "audio_processing_error",
+                            "audio_path": audio_path,
+                            "caption": caption,
+                            "error": f"{type(exc).__name__}: {exc}",
+                            **record,
+                        },
+                        ensure_ascii=False,
+                    ) + "\n"
+                )
+                continue
 
             passed, metrics = passes_hapticgen_filter(haptic_wave)
             if not passed:
@@ -117,7 +139,23 @@ def prepare_wavcaps_haptic_dataset(
 
             wav_path = sample_dir / f"{sample_id}.wav"
             meta_path = sample_dir / f"{sample_id}.am1.json"
-            sf.write(wav_path, haptic_wave, output_sr, subtype="PCM_U8")
+            try:
+                sf.write(wav_path, haptic_wave, output_sr, subtype="PCM_U8")
+            except Exception as exc:
+                rejected += 1
+                rejected_fp.write(
+                    json.dumps(
+                        {
+                            "reason": "write_error",
+                            "audio_path": audio_path,
+                            "caption": caption,
+                            "error": f"{type(exc).__name__}: {exc}",
+                            **record,
+                        },
+                        ensure_ascii=False,
+                    ) + "\n"
+                )
+                continue
 
             metadata = {
                 "filename": wav_path.name,
@@ -147,6 +185,10 @@ def prepare_wavcaps_haptic_dataset(
             )
             accepted += 1
 
+    print(
+        f"[prepare] complete scanned={scanned} accepted={accepted} rejected={rejected}",
+        flush=True,
+    )
     return {
         "scanned": scanned,
         "accepted": accepted,
