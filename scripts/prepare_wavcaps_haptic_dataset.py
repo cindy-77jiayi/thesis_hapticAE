@@ -64,6 +64,7 @@ def main():
     print(f"  scanned:  {summary['scanned']}")
     print(f"  accepted: {summary['accepted']}")
     print(f"  rejected: {summary['rejected']}")
+    print(f"  skipped:  {summary.get('skipped_existing', 0)}")
     print(f"  output:   {args.output_dir}")
 
 

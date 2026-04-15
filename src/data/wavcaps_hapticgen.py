@@ -12,6 +12,11 @@ import librosa
 import numpy as np
 import soundfile as sf
 
+try:
+    from tqdm.auto import tqdm
+except Exception:  # pragma: no cover - optional UI dependency
+    tqdm = None
+
 
 MIN_ACCEPTABLE_AMPLITUDE = 0.05
 MIN_ACCEPTABLE_995TH_AMPLITUDE = 0.02
@@ -59,21 +64,47 @@ def prepare_wavcaps_haptic_dataset(
 
     manifest_path = output_root / "manifest.jsonl"
     rejected_path = output_root / "rejected.jsonl"
+    existing_manifest_paths = load_existing_manifest_paths(manifest_path)
+    manifest_mode = "a" if existing_manifest_paths else "w"
+    rejected_mode = "a" if rejected_path.exists() else "w"
     audio_index = build_audio_index(audio_root, audio_extensions)
 
     accepted = 0
     rejected = 0
     scanned = 0
+    skipped_existing = 0
+    total_records = count_wavcaps_records(metadata_root)
+    if limit is not None:
+        total_records = min(total_records, limit)
 
-    with manifest_path.open("w", encoding="utf-8") as manifest_fp, rejected_path.open("w", encoding="utf-8") as rejected_fp:
+    if existing_manifest_paths:
+        print(
+            f"[prepare] resuming with {len(existing_manifest_paths)} existing manifest entries",
+            flush=True,
+        )
+
+    progress = (
+        tqdm(total=total_records, desc="prepare", unit="sample", dynamic_ncols=True)
+        if tqdm is not None
+        else None
+    )
+
+    with manifest_path.open(manifest_mode, encoding="utf-8") as manifest_fp, rejected_path.open(rejected_mode, encoding="utf-8") as rejected_fp:
         for record in iter_wavcaps_records(metadata_root):
             if limit is not None and scanned >= limit:
                 break
 
             scanned += 1
+            if progress is not None:
+                progress.update(1)
+                progress.set_postfix(
+                    accepted=accepted,
+                    rejected=rejected,
+                    skipped=skipped_existing,
+                )
             if progress_every > 0 and scanned % progress_every == 0:
                 print(
-                    f"[prepare] scanned={scanned} accepted={accepted} rejected={rejected}",
+                    f"[prepare] scanned={scanned} accepted={accepted} rejected={rejected} skipped_existing={skipped_existing}",
                     flush=True,
                 )
             caption = extract_caption(record["payload"])
@@ -88,8 +119,23 @@ def prepare_wavcaps_haptic_dataset(
                 rejected_fp.write(json.dumps({"reason": "missing_audio", **record}, ensure_ascii=False) + "\n")
                 continue
 
+            sample_id = slugify(f"{Path(audio_path).stem}_{record['record_index']:06d}")
+            source_group = slugify(record["source_group"])
+            sample_dir = output_root / source_group / sample_id
+            wav_path = sample_dir / f"{sample_id}.wav"
+            meta_path = sample_dir / f"{sample_id}.am1.json"
+            if wav_path.exists() and meta_path.exists():
+                skipped_existing += 1
+                backfill_manifest_entry(
+                    manifest_fp=manifest_fp,
+                    existing_manifest_paths=existing_manifest_paths,
+                    wav_path=wav_path,
+                    meta_path=meta_path,
+                )
+                continue
+
             try:
-                waveform, input_sr = librosa.load(audio_path, sr=None, mono=True)
+                waveform, input_sr = load_audio_mono(audio_path)
                 haptic_wave = audio_to_haptic(waveform, input_sr=input_sr, output_sr=output_sr)
             except Exception as exc:
                 rejected += 1
@@ -132,13 +178,7 @@ def prepare_wavcaps_haptic_dataset(
                     model=openai_model,
                 )
 
-            sample_id = slugify(f"{Path(audio_path).stem}_{record['record_index']:06d}")
-            source_group = slugify(record["source_group"])
-            sample_dir = output_root / source_group / sample_id
             sample_dir.mkdir(parents=True, exist_ok=True)
-
-            wav_path = sample_dir / f"{sample_id}.wav"
-            meta_path = sample_dir / f"{sample_id}.am1.json"
             try:
                 sf.write(wav_path, haptic_wave, output_sr, subtype="PCM_U8")
             except Exception as exc:
@@ -183,16 +223,20 @@ def prepare_wavcaps_haptic_dataset(
                     ensure_ascii=False,
                 ) + "\n"
             )
+            existing_manifest_paths.add(str(meta_path))
             accepted += 1
 
+    if progress is not None:
+        progress.close()
     print(
-        f"[prepare] complete scanned={scanned} accepted={accepted} rejected={rejected}",
+        f"[prepare] complete scanned={scanned} accepted={accepted} rejected={rejected} skipped_existing={skipped_existing}",
         flush=True,
     )
     return {
         "scanned": scanned,
         "accepted": accepted,
         "rejected": rejected,
+        "skipped_existing": skipped_existing,
     }
 
 
@@ -216,6 +260,21 @@ def iter_wavcaps_records(metadata_root: Path):
                 "record_index": index,
                 "payload": record,
             }
+
+
+def count_wavcaps_records(metadata_root: Path) -> int:
+    """Count records for progress reporting without holding them all in memory."""
+    total = 0
+    for json_path in sorted(metadata_root.rglob("*.json")):
+        if json_path.parent.name.lower() == "blacklist":
+            continue
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        try:
+            records = extract_record_list(payload)
+        except ValueError:
+            continue
+        total += sum(1 for record in records if isinstance(record, dict))
+    return total
 
 
 def extract_record_list(payload: Any) -> list[dict[str, Any]]:
@@ -259,6 +318,52 @@ def build_audio_index(audio_root: Path, extensions: tuple[str, ...]) -> dict[str
         for key in {relative, basename, stem}:
             index.setdefault(key, str(path))
     return index
+
+
+def load_existing_manifest_paths(manifest_path: Path) -> set[str]:
+    """Collect metadata paths already listed in an existing manifest."""
+    if not manifest_path.exists():
+        return set()
+
+    existing: set[str] = set()
+    with manifest_path.open("r", encoding="utf-8") as fp:
+        for line in fp:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            meta_path = payload.get("metadata_path")
+            if isinstance(meta_path, str) and meta_path:
+                existing.add(meta_path)
+    return existing
+
+
+def backfill_manifest_entry(
+    manifest_fp,
+    existing_manifest_paths: set[str],
+    wav_path: Path,
+    meta_path: Path,
+) -> None:
+    """Re-add an existing sample to the manifest if it was produced before a crash."""
+    meta_key = str(meta_path)
+    if meta_key in existing_manifest_paths:
+        return
+
+    metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    manifest_fp.write(
+        json.dumps(
+            {
+                "path": str(wav_path),
+                "metadata_path": meta_key,
+                **metadata,
+            },
+            ensure_ascii=False,
+        ) + "\n"
+    )
+    existing_manifest_paths.add(meta_key)
 
 
 def extract_caption(record: dict[str, Any]) -> str | None:
@@ -309,6 +414,19 @@ def audio_to_haptic(waveform: np.ndarray, input_sr: int, output_sr: int) -> np.n
     return amp_env_on_wav_norm(wav_norm, input_sample_rate=input_sr, output_sample_rate=output_sr)
 
 
+def load_audio_mono(audio_path: str) -> tuple[np.ndarray, int]:
+    """Load audio with soundfile when possible, then fall back to librosa."""
+    try:
+        waveform, input_sr = sf.read(audio_path, always_2d=False)
+        waveform = np.asarray(waveform, dtype=np.float32)
+        if waveform.ndim > 1:
+            waveform = waveform.mean(axis=1)
+        return waveform.squeeze(), int(input_sr)
+    except Exception:
+        waveform, input_sr = librosa.load(audio_path, sr=None, mono=True)
+        return np.asarray(waveform, dtype=np.float32).squeeze(), int(input_sr)
+
+
 def amp_env_on_wav_norm(
     wav_norm: np.ndarray,
     input_sample_rate: int,
@@ -331,25 +449,21 @@ def amp_env_on_wav_norm(
     rms_amplify = max(1.0, min(1.2, 1.0 / max(rms_max * rms_norm, 1e-8)))
     rms_norm_amp = rms_norm * rms_amplify
     out_samples = max(1, int(duration_sec * output_sample_rate))
+    t = np.arange(out_samples, dtype=np.float32) / float(output_sample_rate)
+    t_prog = np.minimum(1.0, t / max(duration_sec, 1e-8))
+    bin_fi = t_prog * num_bins
+    bin_lo = np.minimum(num_bins - 1, bin_fi.astype(np.int32))
+    bin_hi = np.minimum(num_bins - 1, np.ceil(bin_fi).astype(np.int32))
+    bin_fr = bin_fi - bin_lo
 
-    phase_acc = 0.0
-    output = np.zeros(out_samples, dtype=np.float32)
-    for i in range(out_samples):
-        t = i / output_sample_rate
-        t_prog = min(1.0, t / max(duration_sec, 1e-8))
-
-        bin_fi = t_prog * num_bins
-        bin_lo = min(num_bins - 1, int(bin_fi))
-        bin_hi = min(num_bins - 1, int(math.ceil(bin_fi)))
-        bin_fr = bin_fi - bin_lo
-        rms = float((rms_bins[bin_lo] * (1.0 - bin_fr) + rms_bins[bin_hi] * bin_fr) * rms_norm_amp)
-        freq_offset = (rms - 0.3) * 100.0
-
-        phase_delta = 2.0 * math.pi * (BASE_FREQ + freq_offset) / output_sample_rate
-        phase_acc = (phase_acc + phase_delta) % (2.0 * math.pi)
-        output[i] = rms * math.sin(phase_acc)
-
-    return output
+    rms = (
+        (rms_bins[bin_lo] * (1.0 - bin_fr) + rms_bins[bin_hi] * bin_fr)
+        * rms_norm_amp
+    ).astype(np.float32)
+    freq_offset = (rms - 0.3) * 100.0
+    phase_delta = (2.0 * math.pi * (BASE_FREQ + freq_offset) / output_sample_rate).astype(np.float32)
+    phase = np.mod(np.cumsum(phase_delta, dtype=np.float64), 2.0 * math.pi).astype(np.float32)
+    return (rms * np.sin(phase)).astype(np.float32)
 
 
 def passes_hapticgen_filter(signal: np.ndarray) -> tuple[bool, dict[str, float]]:
