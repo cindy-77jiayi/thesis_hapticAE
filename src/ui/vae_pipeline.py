@@ -49,13 +49,14 @@ def build_demo(
     pipeline_runner: PipelineRunner = run_three_image_reconstruction,
 ) -> gr.Blocks:
     """Build the local end-to-end validation UI."""
+    outputs_root = str(Path(outputs_dir).resolve())
 
     def _generate(
         image_1: str | None,
         image_2: str | None,
         image_3: str | None,
         notes: str,
-    ) -> tuple[str, str, str, str, str, str]:
+    ) -> tuple[str, str, str, str, str, str, str, str]:
         result = run_three_image_generation(
             image_paths=[image_1, image_2, image_3],
             notes=notes,
@@ -71,6 +72,8 @@ def build_demo(
             json.dumps(segment["pc_vector"], indent=2, ensure_ascii=False),
             result["generated_wav"],
             result["waveform_image"],
+            result["generated_wav"],
+            result["waveform_image"],
             result["run_dir"],
         )
 
@@ -84,6 +87,7 @@ def build_demo(
             OpenAI semantic controls -> PC vector -> local VAE waveform reconstruction.
 
             Frozen manifest: `{frozen_manifest_label}`
+            Outputs root: `{outputs_root}`
             """
         )
 
@@ -102,6 +106,9 @@ def build_demo(
         with gr.Row():
             audio_output = gr.Audio(label="generated wav", type="filepath")
             waveform_output = gr.Image(label="waveform image", type="filepath")
+        with gr.Row():
+            generated_wav_path = gr.Textbox(label="generated wav path", interactive=False)
+            waveform_image_path = gr.Textbox(label="waveform image path", interactive=False)
         run_dir_state = gr.Textbox(label="run directory", interactive=False)
 
         generate_btn.click(
@@ -113,6 +120,8 @@ def build_demo(
                 pc_vector,
                 audio_output,
                 waveform_output,
+                generated_wav_path,
+                waveform_image_path,
                 run_dir_state,
             ],
         )

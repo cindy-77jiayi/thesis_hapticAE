@@ -28,7 +28,12 @@ def main() -> None:
         model=args.model,
         outputs_dir=args.outputs_dir,
     )
-    demo.launch(server_name=args.server_name, server_port=args.server_port, share=args.share)
+    demo.launch(
+        server_name=args.server_name,
+        server_port=args.server_port,
+        share=args.share,
+        allowed_paths=[args.outputs_dir],
+    )
 
 
 if __name__ == "__main__":
