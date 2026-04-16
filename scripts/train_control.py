@@ -12,7 +12,12 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from src.data.loaders import build_dataloaders, build_model, load_checkpoint
+from src.data.loaders import (
+    build_dataloaders,
+    build_model,
+    load_checkpoint,
+    load_codec_backbone_checkpoint,
+)
 from src.training.control_trainer import ControlTrainer, compute_metric_targets
 from src.utils.config import load_config
 from src.utils.seed import set_seed
@@ -50,8 +55,15 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(config, device)
-    load_checkpoint(model, args.codec_checkpoint, device)
-    print(f"✅ Loaded codec checkpoint: {args.codec_checkpoint}")
+    try:
+        load_checkpoint(model, args.codec_checkpoint, device)
+        print(f"✅ Loaded full codec checkpoint: {args.codec_checkpoint}")
+    except RuntimeError as exc:
+        if "size mismatch" not in str(exc):
+            raise
+        print("ℹ️ Control branch shape mismatch detected; loading codec backbone only.")
+        load_codec_backbone_checkpoint(model, args.codec_checkpoint, device)
+        print(f"✅ Loaded codec backbone checkpoint: {args.codec_checkpoint}")
 
     metric_stats = compute_metric_stats(data["train_loader"], metric_names, int(config["data"]["sr"]))
     stats_path = os.path.join(args.output_root, args.run_name, "control", "metric_stats.json")

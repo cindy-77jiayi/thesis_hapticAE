@@ -219,6 +219,7 @@ def load_checkpoint(
     model: nn.Module,
     path: str,
     device: torch.device | None = None,
+    strict: bool = True,
 ) -> nn.Module:
     """Load a state_dict checkpoint into a model.
 
@@ -226,8 +227,40 @@ def load_checkpoint(
     """
     map_loc = device or torch.device("cpu")
     state = torch.load(path, map_location=map_loc, weights_only=True)
-    model.load_state_dict(state)
+    model.load_state_dict(state, strict=strict)
     if device is not None:
         model = model.to(device)
     model.eval()
+    return model
+
+
+def load_codec_backbone_checkpoint(
+    model: nn.Module,
+    path: str,
+    device: torch.device | None = None,
+) -> nn.Module:
+    """Load only the shared codec backbone from a checkpoint.
+
+    This is used when reusing a trained codec checkpoint but changing the
+    control branch dimensions. Only encoder / RVQ / decoder weights are loaded;
+    control-specific layers stay randomly initialized.
+    """
+    map_loc = device or torch.device("cpu")
+    state = torch.load(path, map_location=map_loc, weights_only=True)
+    allowed_prefixes = ("encoder.", "rvq.", "decoder.")
+    filtered = {
+        key: value
+        for key, value in state.items()
+        if key.startswith(allowed_prefixes)
+    }
+    missing, unexpected = model.load_state_dict(filtered, strict=False)
+    if unexpected:
+        raise RuntimeError(f"Unexpected backbone checkpoint keys: {unexpected}")
+    if device is not None:
+        model = model.to(device)
+    model.eval()
+    print(
+        "Loaded codec backbone from checkpoint "
+        f"({len(filtered)} tensors, {len(missing)} model tensors left randomly initialized)"
+    )
     return model
