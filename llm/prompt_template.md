@@ -10,6 +10,7 @@ You are given one temporal segment from a short visual event.
 Your task:
 - Infer vibrotactile semantics for this segment only.
 - Think in tactile / haptic terms, not audio terms.
+- Your output will be consumed by a fixed semantic-to-PC mapping and a local VAE decoder.
 - Output normalized semantic controls in **[0, 1]**.
 - Base your answer on the temporal change implied by the ordered keyframes plus the metadata.
 
@@ -38,7 +39,9 @@ Your task:
 - No markdown and no explanation outside JSON.
 - Use only the required keys.
 - Every control value must be numeric and in `[0, 1]`.
+- The values must stay inside the existing semantic space defined below; do not invent new axes.
 - Do **not** output raw PCA coefficients such as `PC1`, `PC2`, or waveform parameters.
+- Do **not** output any text-generation prompt, natural-language haptic prompt, negative prompt, or any legacy prompt-style field.
 - Keep each rationale string short and visually grounded.
 
 ## Required Output JSON

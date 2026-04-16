@@ -5,9 +5,6 @@ hapticgen-dataset/
 /data/*
 !/data/actions/
 
-# Third-party repos
-HapticGen/
-
 # Outputs and checkpoints
 outputs/
 experiments/
