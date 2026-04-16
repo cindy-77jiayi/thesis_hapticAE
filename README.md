@@ -65,7 +65,7 @@ Open the notebook walkthrough:
 
 - `colab/vae_ui_pipeline.ipynb`
 
-`--frozen_manifest` is required because the repository does not track a single canonical frozen runtime bundle.
+`--frozen_manifest` is required because the repository does not track a single canonical frozen runtime bundle. In practice the frozen manifest is expected to live on Google Drive at `MyDrive/thesis/frozen_model_outputs/latest_frozen_manifest.json` (for Colab: `/content/drive/MyDrive/thesis/frozen_model_outputs/latest_frozen_manifest.json`).
 
 ## Frozen Runtime Contract
 
