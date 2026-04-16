@@ -61,6 +61,10 @@ Run the CLI over a segment manifest:
 python run_llm_to_haptic.py --manifest <segment-manifest.json> --frozen_manifest <path-to-frozen_manifest.json>
 ```
 
+Open the notebook walkthrough:
+
+- `colab/vae_ui_pipeline.ipynb`
+
 `--frozen_manifest` is required because the repository does not track a single canonical frozen runtime bundle.
 
 ## Frozen Runtime Contract
