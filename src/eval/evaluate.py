@@ -172,11 +172,13 @@ def print_metrics(result: dict):
         )
     print("-" * 70)
     if "mu_mean" in result:
-        print(
+        latent_line = (
             f"  Latent: mu mean={result['mu_mean']:.4f}  "
-            f"mu std={result['mu_std']:.4f}  "
-            f"logvar mean={result['logvar_mean']:.4f}"
+            f"mu std={result['mu_std']:.4f}"
         )
+        if "logvar_mean" in result:
+            latent_line += f"  logvar mean={result['logvar_mean']:.4f}"
+        print(latent_line)
 
     s = result["reconstruction_summary"]
     print(
