@@ -32,6 +32,52 @@ class ResidualBlock1d(nn.Module):
         return self.act(x + self.block(x))
 
 
+class FiLMResidualBlock1d(nn.Module):
+    """Residual block conditioned on a control vector via FiLM."""
+
+    def __init__(
+        self,
+        channels: int,
+        cond_dim: int,
+        hidden_dim: int,
+        kernel_size: int = 7,
+        activation: str = "leaky_relu",
+        norm: str = "group",
+    ):
+        super().__init__()
+        norm_fn = make_norm(norm)
+        act = make_activation(activation)
+        padding = kernel_size // 2
+
+        self.conv1 = nn.Conv1d(channels, channels, kernel_size=kernel_size, padding=padding)
+        self.norm1 = norm_fn(channels)
+        self.conv2 = nn.Conv1d(channels, channels, kernel_size=kernel_size, padding=padding)
+        self.norm2 = norm_fn(channels)
+        self.act = clone_activation(act)
+        self.film = nn.Sequential(
+            nn.Linear(cond_dim, hidden_dim),
+            clone_activation(act),
+            nn.Linear(hidden_dim, channels * 4),
+        )
+
+    def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
+        scale_shift = self.film(cond)
+        s1, b1, s2, b2 = torch.chunk(scale_shift, 4, dim=1)
+        s1 = s1.unsqueeze(-1)
+        b1 = b1.unsqueeze(-1)
+        s2 = s2.unsqueeze(-1)
+        b2 = b2.unsqueeze(-1)
+
+        h = self.conv1(x)
+        h = self.norm1(h)
+        h = h * (1.0 + s1) + b1
+        h = self.act(h)
+        h = self.conv2(h)
+        h = self.norm2(h)
+        h = h * (1.0 + s2) + b2
+        return self.act(x + h)
+
+
 class VectorQuantizer(nn.Module):
     """Straight-through vector quantizer for one codebook."""
 
@@ -208,18 +254,57 @@ class HapticCodec(nn.Module):
             commitment_weight=commitment_weight,
         )
 
-        pooled_dim = self.encoder_channels * 2
+        pooled_dim = self.encoder_channels * 3
+        self.control_attention = nn.Sequential(
+            nn.Conv1d(self.encoder_channels, self.encoder_channels, kernel_size=1),
+            clone_activation(act),
+            nn.Conv1d(self.encoder_channels, 1, kernel_size=1),
+        )
         self.control_encoder = nn.Sequential(
             nn.Linear(pooled_dim, control_hidden),
             nn.LayerNorm(control_hidden),
-            clone_activation(act),
-            nn.Linear(control_hidden, control_dim),
+            nn.GELU(),
+            nn.Linear(control_hidden, control_hidden // 2),
+            nn.LayerNorm(control_hidden // 2),
+            nn.GELU(),
+            nn.Linear(control_hidden // 2, control_dim),
         )
-        self.control_decoder = nn.Sequential(
-            nn.Linear(control_dim, control_hidden),
-            clone_activation(act),
-            nn.Linear(control_hidden, self.code_dim * self.latent_frames),
+        self.control_seed_steps = 16
+        self.control_seed_proj = nn.Linear(control_dim, self.code_dim * self.control_seed_steps)
+        self.control_upsample = nn.Sequential(
+            UpsampleBlock1d(
+                in_channels=self.code_dim,
+                out_channels=self.code_dim,
+                scale_factor=4,
+                kernel_size=kernel_size,
+                activation=activation,
+                norm=norm,
+                final=False,
+            ),
+            UpsampleBlock1d(
+                in_channels=self.code_dim,
+                out_channels=self.code_dim,
+                scale_factor=2,
+                kernel_size=kernel_size,
+                activation=activation,
+                norm=norm,
+                final=False,
+            ),
         )
+        self.control_refine = nn.ModuleList(
+            [
+                FiLMResidualBlock1d(
+                    channels=self.code_dim,
+                    cond_dim=control_dim,
+                    hidden_dim=control_hidden,
+                    kernel_size=residual_kernel_size,
+                    activation=activation,
+                    norm=norm,
+                )
+                for _ in range(3)
+            ]
+        )
+        self.control_out = nn.Conv1d(self.code_dim, self.code_dim, kernel_size=1)
         self.metric_head = nn.Sequential(
             nn.Linear(control_dim, control_hidden),
             clone_activation(act),
@@ -257,10 +342,19 @@ class HapticCodec(nn.Module):
     def encode_features(self, x: torch.Tensor) -> torch.Tensor:
         return self.encoder(x)
 
-    def pool_control_features(self, features: torch.Tensor) -> torch.Tensor:
+    def pool_control_features(self, features: torch.Tensor, return_parts: bool = False):
         mean = features.mean(dim=-1)
         std = features.std(dim=-1, unbiased=False)
-        pooled = torch.cat([mean, std], dim=1)
+        attn_logits = self.control_attention(features)
+        attn = torch.softmax(attn_logits, dim=-1)
+        attn_pool = torch.sum(features * attn, dim=-1)
+        pooled = torch.cat([mean, std, attn_pool], dim=1)
+        if return_parts:
+            return pooled, {"mean": mean, "std": std, "attention": attn_pool}
+        return pooled
+
+    def encode_control_from_features(self, features: torch.Tensor) -> torch.Tensor:
+        pooled = self.pool_control_features(features)
         return self.control_encoder(pooled)
 
     def encode_sequence(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -277,11 +371,18 @@ class HapticCodec(nn.Module):
 
     def encode_control(self, x: torch.Tensor) -> torch.Tensor:
         features = self.encode_features(x)
-        return self.pool_control_features(features)
+        return self.encode_control_from_features(features)
 
     def control_to_sequence(self, z_ctrl: torch.Tensor) -> torch.Tensor:
-        coarse = self.control_decoder(z_ctrl).view(z_ctrl.shape[0], self.code_dim, self.latent_frames)
-        return coarse
+        seed = self.control_seed_proj(z_ctrl).view(z_ctrl.shape[0], self.code_dim, self.control_seed_steps)
+        coarse = self.control_upsample(seed)
+        if coarse.shape[-1] > self.latent_frames:
+            coarse = coarse[..., :self.latent_frames]
+        elif coarse.shape[-1] < self.latent_frames:
+            coarse = F.pad(coarse, (0, self.latent_frames - coarse.shape[-1]))
+        for block in self.control_refine:
+            coarse = block(coarse, z_ctrl)
+        return self.control_out(coarse)
 
     def decode_control(self, z_ctrl: torch.Tensor, target_len: int | None = None) -> torch.Tensor:
         coarse = self.control_to_sequence(z_ctrl)
@@ -302,7 +403,7 @@ class HapticCodec(nn.Module):
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
         features = self.encode_features(x)
-        z_ctrl = self.pool_control_features(features)
+        z_ctrl = self.encode_control_from_features(features)
         z_seq, codes, vq_losses = self.quantize_sequence(features)
         recon_seq = self.decode_sequence(z_seq, target_len=x.shape[-1])
         recon_ctrl = self.decode_control(z_ctrl, target_len=x.shape[-1])

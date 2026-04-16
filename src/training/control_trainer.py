@@ -52,6 +52,10 @@ class ControlTrainer:
         self.w_amp = float(loss_cfg.get("amplitude_weight", 1.0))
         self.w_env = float(loss_cfg.get("envelope_weight", 1.0))
         self.w_metric = float(loss_cfg.get("metric_weight", 1.0))
+        self.w_latent = float(loss_cfg.get("latent_weight", 0.0))
+        self.w_var = float(loss_cfg.get("var_weight", 0.0))
+        self.w_cov = float(loss_cfg.get("cov_weight", 0.0))
+        self.var_target = float(loss_cfg.get("var_target", 0.5))
         self.clamp_range = float(loss_cfg.get("clamp_range", 3.0))
 
         opt_cfg = config.get("control_optimizer", {})
@@ -82,10 +86,27 @@ class ControlTrainer:
         self.best_val = float("inf")
         self.best_state = None
 
+    @staticmethod
+    def _variance_floor_loss(z_ctrl: torch.Tensor, target_std: float) -> torch.Tensor:
+        std = z_ctrl.std(dim=0, unbiased=False)
+        return torch.relu(target_std - std).mean()
+
+    @staticmethod
+    def _covariance_loss(z_ctrl: torch.Tensor) -> torch.Tensor:
+        if z_ctrl.shape[0] < 2:
+            return torch.tensor(0.0, device=z_ctrl.device)
+        z_centered = z_ctrl - z_ctrl.mean(dim=0, keepdim=True)
+        cov = (z_centered.T @ z_centered) / max(z_ctrl.shape[0] - 1, 1)
+        off_diag = cov - torch.diag(torch.diagonal(cov))
+        return torch.mean(off_diag ** 2)
+
     def _compute_loss(self, x: torch.Tensor) -> tuple[torch.Tensor, dict[str, float]]:
-        z_ctrl = self.model.encode_control(x)
+        features = self.model.encode_features(x)
+        z_ctrl = self.model.encode_control_from_features(features)
         recon_ctrl = torch.clamp(self.model.decode_control(z_ctrl, target_len=x.shape[-1]), -self.clamp_range, self.clamp_range)
         pred_metrics = self.model.predict_metrics(z_ctrl)
+        z_seq_target, _, _ = self.model.quantize_sequence(features)
+        z_seq_ctrl = self.model.control_to_sequence(z_ctrl)
 
         target_metrics = compute_metric_targets(x, self.metric_names, self.sample_rate).to(self.device)
         target_norm = (target_metrics - self.metric_mean) / self.metric_std.clamp_min(1e-6)
@@ -94,13 +115,27 @@ class ControlTrainer:
         amp = amplitude_loss(recon_ctrl, x)
         env = envelope_loss(recon_ctrl, x, sr=self.sample_rate)
         metric = torch.nn.functional.mse_loss(pred_metrics, target_norm)
+        latent = torch.nn.functional.l1_loss(z_seq_ctrl, z_seq_target.detach())
+        var = self._variance_floor_loss(z_ctrl, self.var_target)
+        cov = self._covariance_loss(z_ctrl)
 
-        loss = self.w_l1 * l1 + self.w_amp * amp + self.w_env * env + self.w_metric * metric
+        loss = (
+            self.w_latent * latent
+            + self.w_l1 * l1
+            + self.w_amp * amp
+            + self.w_env * env
+            + self.w_metric * metric
+            + self.w_var * var
+            + self.w_cov * cov
+        )
         stats = {
             "l1": float(l1.detach().item()),
             "amp": float(amp.detach().item()),
             "env": float(env.detach().item()),
             "metric": float(metric.detach().item()),
+            "latent": float(latent.detach().item()),
+            "var": float(var.detach().item()),
+            "cov": float(cov.detach().item()),
         }
         return loss, stats
 
@@ -108,7 +143,7 @@ class ControlTrainer:
         self.model.train(train)
         total_loss = 0.0
         count = 0
-        stats_accum = {"l1": 0.0, "amp": 0.0, "env": 0.0, "metric": 0.0}
+        stats_accum = {"l1": 0.0, "amp": 0.0, "env": 0.0, "metric": 0.0, "latent": 0.0, "var": 0.0, "cov": 0.0}
         mode = "train" if train else "val"
         pbar = tqdm(loader, desc=f"{mode} control {epoch}", leave=False)
 
@@ -149,7 +184,9 @@ class ControlTrainer:
                 pct = 100.0 * epoch / self.total_epochs
                 print(
                     f"[Control {epoch:03d}/{self.total_epochs} | {pct:5.1f}%] "
-                    f"lr={lr:.2e} | train={tr:.6f} | val={va:.6f} | metric={va_stats['metric']:.5f}"
+                    f"lr={lr:.2e} | train={tr:.6f} | val={va:.6f} | "
+                    f"latent={va_stats['latent']:.5f} | metric={va_stats['metric']:.5f} | "
+                    f"var={va_stats['var']:.5f} | cov={va_stats['cov']:.5f}"
                 )
 
             improved = np.isfinite(va) and va < self.best_val - self.min_delta

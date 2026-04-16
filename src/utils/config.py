@@ -42,8 +42,8 @@ _DEFAULTS = {
         "n_codebooks": 4,
         "codebook_size": 256,
         "commitment_weight": 0.25,
-        "control_dim": 16,
-        "control_hidden": 128,
+        "control_dim": 24,
+        "control_hidden": 192,
         "metric_dim": 8,
     },
 
@@ -92,7 +92,7 @@ _DEFAULTS = {
 
     "control_training": {
         "batch_size": 8,
-        "epochs": 40,
+        "epochs": 60,
         "patience": 8,
         "min_delta": 1e-4,
         "early_stop_start": 6,
@@ -114,7 +114,11 @@ _DEFAULTS = {
         "waveform_l1_weight": 0.3,
         "amplitude_weight": 1.0,
         "envelope_weight": 1.0,
-        "metric_weight": 1.0,
+        "metric_weight": 0.3,
+        "latent_weight": 0.6,
+        "var_weight": 0.1,
+        "cov_weight": 0.05,
+        "var_target": 0.5,
         "clamp_range": 3.0,
         "metric_names": [
             "rms_energy",
