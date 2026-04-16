@@ -1,4 +1,4 @@
-"""Step 1: Extract latent vectors (mu) from the full dataset using a trained VAE encoder."""
+"""Extract latent or control vectors from the full dataset for downstream PCA."""
 
 import os
 import pickle
@@ -14,29 +14,30 @@ def extract_latent_vectors(
     loader: DataLoader,
     device: torch.device,
 ) -> np.ndarray:
-    """Encode the entire dataset and return the mu vectors.
+    """Encode the entire dataset and return vectors suitable for PCA.
 
-    Uses the deterministic mu (not sampled z) for stable, repeatable
-    latent representations suitable for downstream analysis like PCA.
-
-    Returns:
-        Z: np.ndarray of shape (N, latent_dim) containing all mu vectors.
+    For VAE models this uses deterministic ``mu``.
+    For codec models this uses ``encode_control`` so PCA runs on the
+    dedicated control latent instead of the reconstruction sequence codes.
     """
     model.eval()
-    all_mu = []
+    all_vectors = []
 
     with torch.no_grad():
         for x in tqdm(loader, desc="Extracting latents", leave=False):
             x = x.to(device)
-            _, mu, _ = model.encode(x)
-            all_mu.append(mu.cpu().numpy())
+            if hasattr(model, "encode_control"):
+                vectors = model.encode_control(x)
+            else:
+                _, vectors, _ = model.encode(x)
+            all_vectors.append(vectors.cpu().numpy())
 
-    Z = np.concatenate(all_mu, axis=0)
+    Z = np.concatenate(all_vectors, axis=0)
 
     assert Z.ndim == 2, f"Expected 2D array, got shape {Z.shape}"
     assert np.all(np.isfinite(Z)), f"Z contains {np.sum(~np.isfinite(Z))} NaN/Inf values"
 
-    print(f"Extracted latent vectors: shape={Z.shape}, "
+    print(f"Extracted vectors: shape={Z.shape}, "
           f"mean={Z.mean():.4f}, std={Z.std():.4f}, "
           f"min={Z.min():.4f}, max={Z.max():.4f}")
 

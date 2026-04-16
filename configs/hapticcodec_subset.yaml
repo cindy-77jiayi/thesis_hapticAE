@@ -1,0 +1,99 @@
+seed: 42
+model_type: codec
+run_name: hapticcodec_subset
+
+data:
+  sr: 8000
+  T: 40000
+  scale: 1.0
+  segment_mode: hapticgen
+  normalize_mode: none
+  min_segment_ratio: 1.0
+  clip_range: null
+  train_split: 0.8
+  analysis_batch_size: 8
+  train_random_seek: true
+  train_sample_with_replacement: false
+  val_random_seek: false
+  val_sample_with_replacement: false
+
+model:
+  channels: [32, 64, 128, 128, 64]
+  strides: [5, 4, 4, 2, 2]
+  first_kernel: 25
+  kernel_size: 9
+  residual_kernel_size: 7
+  activation: leaky_relu
+  norm: group
+  code_dim: 64
+  n_codebooks: 4
+  codebook_size: 256
+  commitment_weight: 0.25
+  control_dim: 16
+  control_hidden: 128
+  metric_dim: 8
+
+training:
+  batch_size: 8
+  epochs: 50
+  patience: 10
+  min_delta: 0.0001
+  early_stop_start: 8
+  grad_clip: 1.0
+  print_every: 5
+
+optimizer:
+  lr: 0.0002
+  weight_decay: 1.0e-5
+
+scheduler:
+  factor: 0.5
+  patience: 8
+
+loss:
+  l1_weight: 0.4
+  stft_loss_weight: 0.5
+  amplitude_weight: 1.0
+  envelope_weight: 1.0
+  clamp_range: 3.0
+  recon_time_weight: 1.0
+  stft_scales: [128, 256, 512, 1024]
+  stft_hop_lengths: [32, 64, 128, 256]
+  stft_win_lengths: [128, 256, 512, 1024]
+  stft_scale_weights: [1.0, 1.0, 0.8, 0.6]
+  stft_linear_weight: 0.02
+  stft_log_weight: 0.02
+  stft_eps: 1.0e-07
+
+control_training:
+  batch_size: 8
+  epochs: 40
+  patience: 8
+  min_delta: 0.0001
+  early_stop_start: 6
+  grad_clip: 1.0
+  print_every: 5
+
+control_optimizer:
+  lr: 0.0002
+  weight_decay: 1.0e-5
+
+control_scheduler:
+  factor: 0.5
+  patience: 6
+
+control_loss:
+  waveform_l1_weight: 0.3
+  amplitude_weight: 1.0
+  envelope_weight: 1.0
+  metric_weight: 1.0
+  clamp_range: 3.0
+  metric_names:
+    - rms_energy
+    - spectral_centroid_hz
+    - spectral_flatness
+    - attack_time_s
+    - gap_ratio
+    - am_modulation_index
+    - short_term_variance
+    - envelope_entropy_bits

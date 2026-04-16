@@ -36,6 +36,15 @@ _DEFAULTS = {
         "activation": "leaky_relu",
         "norm": "group",
         "logvar_clip": [-10.0, 10.0],
+        "strides": [5, 4, 4, 2, 2],
+        "residual_kernel_size": 7,
+        "code_dim": 64,
+        "n_codebooks": 4,
+        "codebook_size": 256,
+        "commitment_weight": 0.25,
+        "control_dim": 16,
+        "control_hidden": 128,
+        "metric_dim": 8,
     },
 
     "training": {
@@ -62,6 +71,7 @@ _DEFAULTS = {
         "l1_weight": 0.2,
         "stft_loss_weight": 0.15,
         "amplitude_weight": 0.5,
+        "envelope_weight": 0.0,
         "clamp_range": 3.0,
         "recon_time_weight": 1.0,
         "stft_scales": [128, 256, 512, 1024],
@@ -78,6 +88,44 @@ _DEFAULTS = {
         "beta_max": 0.0001,
         "n_cycles": 4,
         "ratio": 0.5,
+    },
+
+    "control_training": {
+        "batch_size": 8,
+        "epochs": 40,
+        "patience": 8,
+        "min_delta": 1e-4,
+        "early_stop_start": 6,
+        "grad_clip": 1.0,
+        "print_every": 5,
+    },
+
+    "control_optimizer": {
+        "lr": 2e-4,
+        "weight_decay": 1e-5,
+    },
+
+    "control_scheduler": {
+        "factor": 0.5,
+        "patience": 6,
+    },
+
+    "control_loss": {
+        "waveform_l1_weight": 0.3,
+        "amplitude_weight": 1.0,
+        "envelope_weight": 1.0,
+        "metric_weight": 1.0,
+        "clamp_range": 3.0,
+        "metric_names": [
+            "rms_energy",
+            "spectral_centroid_hz",
+            "spectral_flatness",
+            "attack_time_s",
+            "gap_ratio",
+            "am_modulation_index",
+            "short_term_variance",
+            "envelope_entropy_bits",
+        ],
     },
 }
 

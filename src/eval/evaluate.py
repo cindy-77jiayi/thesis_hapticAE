@@ -52,6 +52,7 @@ def evaluate_reconstruction(
     device: torch.device,
     n_samples: int = 10,
     is_vae: bool = True,
+    model_type: str | None = None,
     sr: int = 8000,
     clamp_range: float | None = 3.0,
 ) -> dict:
@@ -67,7 +68,12 @@ def evaluate_reconstruction(
     x = next(iter(loader))[:n_samples].to(device)
 
     with torch.no_grad():
-        if is_vae:
+        if model_type == "codec" or hasattr(model, "encode_sequence"):
+            x_hat, _, z_seq, z_ctrl, codes, _ = model(x)
+            mu = z_ctrl
+            logvar = None
+            z = z_seq
+        elif is_vae:
             x_hat, mu, logvar, z = model(x)
         else:
             x_hat, z = model(x)
@@ -128,7 +134,7 @@ def evaluate_reconstruction(
     result = {
         "x_np": x_np,
         "xhat_np": xhat_np,
-        "z": z.cpu().numpy(),
+        "z": z.cpu().numpy() if isinstance(z, torch.Tensor) else z,
         "per_sample": metrics,
         "reconstruction_summary": {
             "mse_mean": float(np.mean([m["mse"] for m in metrics])),
@@ -146,7 +152,8 @@ def evaluate_reconstruction(
     if mu is not None:
         result["mu_mean"] = mu.mean().item()
         result["mu_std"] = mu.std().item()
-        result["logvar_mean"] = logvar.mean().item()
+        if logvar is not None:
+            result["logvar_mean"] = logvar.mean().item()
 
     return result
 

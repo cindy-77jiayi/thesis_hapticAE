@@ -95,6 +95,22 @@ def amplitude_loss(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     return rms_diff + peak_diff
 
 
+def envelope_loss(x_hat: torch.Tensor, x: torch.Tensor, sr: int = 8000, frame_ms: float = 10.0) -> torch.Tensor:
+    """RMS-envelope matching loss using 10 ms windows by default."""
+    frame_len = max(int(sr * frame_ms / 1000.0), 8)
+    if frame_len % 2 != 0:
+        frame_len += 1
+    hop = max(frame_len // 2, 1)
+
+    def _frame_rms(sig: torch.Tensor) -> torch.Tensor:
+        unfolded = sig.unfold(dimension=-1, size=frame_len, step=hop)
+        return torch.sqrt(torch.mean(unfolded ** 2, dim=-1) + 1e-8)
+
+    env_x = _frame_rms(x)
+    env_xh = _frame_rms(x_hat)
+    return torch.mean(torch.abs(env_x - env_xh))
+
+
 def kl_divergence_free_bits(
     mu: torch.Tensor, logvar: torch.Tensor, free_bits: float = 0.1
 ) -> torch.Tensor:

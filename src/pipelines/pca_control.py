@@ -58,13 +58,17 @@ def fit_pca_pipeline(
         save_dir.mkdir(parents=True, exist_ok=True)
 
         pipe_path = save_dir / "pca_pipe.pkl"
+        alias_path = save_dir / "controls_pca.pkl"
         zpca_path = save_dir / "Z_pca.npy"
 
         with open(pipe_path, "wb") as f:
             pickle.dump(pipe, f)
+        with open(alias_path, "wb") as f:
+            pickle.dump(pipe, f)
         np.save(zpca_path, Z_pca)
 
         print(f"\n  Saved: {pipe_path}")
+        print(f"  Saved: {alias_path}")
         print(f"  Saved: {zpca_path}")
 
     return pipe, Z_pca
@@ -144,7 +148,10 @@ def sweep_axis(
 
             z_np = control_to_latent(pipe, c)
             z_t = torch.from_numpy(z_np).float().unsqueeze(0).to(device)
-            sig = model.decode(z_t, target_len=T).squeeze().cpu().numpy()
+            if hasattr(model, "decode_control"):
+                sig = model.decode_control(z_t, target_len=T).squeeze().cpu().numpy()
+            else:
+                sig = model.decode(z_t, target_len=T).squeeze().cpu().numpy()
 
             latents.append(z_np)
             signals.append(sig)

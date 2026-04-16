@@ -94,11 +94,15 @@ def build_dataloaders(
     result = {"audio_files": audio_files, "global_rms": global_rms}
 
     if full_dataset:
+        full_files = audio_files
+        if configured_train_files is not None and configured_val_files is not None:
+            full_files = configured_train_files + configured_val_files
+        result["audio_files"] = full_files
         all_ds = AudioSignalDataset(
-            audio_files,
+            full_files,
             random_seek=False,
             sample_with_replacement=False,
-            num_samples=len(audio_files),
+            num_samples=len(full_files),
             seed=seed,
             **ds_kwargs,
         )
@@ -155,6 +159,7 @@ def build_model(config: dict, device: torch.device | None = None) -> nn.Module:
     """
     from src.models.conv_vae import ConvVAE
     from src.models.conv_ae import ConvAE
+    from src.models.haptic_codec import HapticCodec
 
     data_cfg = config["data"]
     model_cfg = config["model"]
@@ -162,7 +167,6 @@ def build_model(config: dict, device: torch.device | None = None) -> nn.Module:
 
     common = dict(
         T=data_cfg["T"],
-        latent_dim=model_cfg["latent_dim"],
         channels=tuple(model_cfg["channels"]),
         first_kernel=model_cfg.get("first_kernel", 25),
         kernel_size=model_cfg.get("kernel_size", 9),
@@ -173,10 +177,38 @@ def build_model(config: dict, device: torch.device | None = None) -> nn.Module:
     if model_type == "vae":
         model = ConvVAE(
             **common,
+            latent_dim=model_cfg["latent_dim"],
             logvar_clip=tuple(model_cfg.get("logvar_clip", [-10, 10])),
         )
+    elif model_type == "ae":
+        model = ConvAE(
+            **common,
+            latent_dim=model_cfg["latent_dim"],
+        )
+    elif model_type == "codec":
+        codec_channels = tuple(model_cfg.get("channels", [32, 64, 128, 128, 64]))
+        strides = tuple(model_cfg.get("strides", [5, 4, 4, 2, 2]))
+        if len(codec_channels) != len(strides):
+            codec_channels = (*codec_channels, int(model_cfg.get("code_dim", 64)))
+        model = HapticCodec(
+            T=data_cfg["T"],
+            channels=codec_channels,
+            strides=strides,
+            first_kernel=model_cfg.get("first_kernel", 25),
+            kernel_size=model_cfg.get("kernel_size", 9),
+            residual_kernel_size=model_cfg.get("residual_kernel_size", 7),
+            activation=model_cfg.get("activation", "leaky_relu"),
+            norm=model_cfg.get("norm", "group"),
+            code_dim=model_cfg.get("code_dim", 64),
+            n_codebooks=model_cfg.get("n_codebooks", 4),
+            codebook_size=model_cfg.get("codebook_size", 256),
+            commitment_weight=model_cfg.get("commitment_weight", 0.25),
+            control_dim=model_cfg.get("control_dim", 16),
+            control_hidden=model_cfg.get("control_hidden", 128),
+            metric_dim=model_cfg.get("metric_dim", 8),
+        )
     else:
-        model = ConvAE(**common)
+        raise ValueError(f"Unknown model_type: {model_type}")
 
     if device is not None:
         model = model.to(device)
