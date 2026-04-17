@@ -3,7 +3,7 @@ base_config: vae_balanced.yaml
 run_name: vae_balanced_8d
 
 data:
-  T: 4000
+  T: 40000
   scale: 0.22
   clip_range: [-5.0, 5.0]
   segment_tries: 48
@@ -27,7 +27,7 @@ model:
   kernel_size: 11
 
 training:
-  batch_size: 24
+  batch_size: 4
 
 loss:
   amplitude_weight: 0.35
