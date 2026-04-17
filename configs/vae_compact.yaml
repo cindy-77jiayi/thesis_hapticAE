@@ -1,9 +1,9 @@
-# VAE config with compact latent space for maximum PCA interpretability
-# Key changes vs vae_structured:
-#   - latent_dim: 32 → 16 (8 PCs will cover 50%+ mechanically)
-#   - beta_max: 0.005 → 0.01 (stronger structure)
-#   - epochs: 150 → 200 (more time to learn with stronger KL)
-#   - patience: 20 → 30
+# VAE config with a compact latent space and stronger compression.
+# Key changes:
+#   - latent_dim: 16
+#   - beta_max: 0.01
+#   - epochs: 200
+#   - patience: 30
 
 seed: 42
 model_type: vae

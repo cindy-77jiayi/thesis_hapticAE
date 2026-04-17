@@ -19,6 +19,21 @@ _DEFAULTS = {
         "scale": 0.25,
         "use_minmax": False,
         "train_split": 0.8,
+        "clip_range": [-3.0, 3.0],
+        "segment_tries": 30,
+        "segment_top_k": 4,
+        "max_resample": 5,
+        "min_energy": 5e-4,
+        "random_segment_prob": 0.0,
+        "search_window_seconds": None,
+        "augmentation": {
+            "enabled": False,
+            "gain_range": [0.9, 1.1],
+            "noise_std": 0.0,
+            "shift_max": 0,
+            "dropout_prob": 0.0,
+            "dropout_width": 0,
+        },
     },
 
     "model": {
@@ -70,6 +85,7 @@ _DEFAULTS = {
     "validation": {
         "sample_every": 0,
         "n_samples": 4,
+        "deterministic_vae": True,
     },
 
     "loss": {

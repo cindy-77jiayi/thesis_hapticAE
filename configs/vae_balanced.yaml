@@ -1,8 +1,5 @@
-# VAE config balancing reconstruction quality and PCA structure
-# Trade-off between vae_default (good recon, bad PCA) and vae_compact (bad recon, good PCA)
-#   - latent_dim: 24 (middle ground: enough capacity, compact enough for PCA)
-#   - beta_max: 0.003 (moderate KL: structured but not over-compressed)
-# Expected: PCA 8 PCs ≈ 55-60%, reconstruction STD ratio ≈ 65-75%
+# VAE config balancing reconstruction quality and latent compactness.
+# This keeps a moderate latent size and moderate KL pressure.
 
 seed: 42
 model_type: vae

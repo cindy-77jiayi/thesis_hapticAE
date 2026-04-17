@@ -1,6 +1,6 @@
 # Haptic Signal VAE - Master's Thesis
 
-Conv1D Variational Autoencoder for vibrotactile waveform reconstruction and semantic-first control mapping.
+Conv1D Variational Autoencoder for vibrotactile waveform reconstruction, with the current branch focused on direct native-latent training and inspection.
 
 ## Project Structure
 
@@ -8,94 +8,41 @@ Conv1D Variational Autoencoder for vibrotactile waveform reconstruction and sema
 thesis/
 |-- README.md
 |-- requirements.txt
-|-- semantic_control_schema.json
 |-- src/
 |   |-- data/
 |   |-- eval/
 |   |-- models/
 |   |-- pipelines/
-|   |-- semantic/
 |   `-- utils/
 |-- scripts/
 |-- baseline/
 |   `-- rule_based_controls.py
-|-- llm/
-|   `-- prompt_template.md
 |-- data/actions/
-|-- run_llm_to_haptic.py
 |-- colab/
-|   `-- frozen_vae_pca_workflow.ipynb
+|   `-- train_colab.ipynb
 `-- docs/
 ```
 
-## Canonical Semantic Space
+## Current Workflow
 
-The semantic source of truth is:
+This branch uses a direct latent workflow instead of a PCA-derived control space:
 
-- `PC1 = frequency`
-- `PC2 = intensity` (inverted in PCA space)
-- `PC3 = envelope_modulation`
-- `PC4 = temporal_grouping`
-- `PC5 = sharpness`
+1. Train an 8D or other configured VAE with `scripts/train.py`
+2. Load the trained checkpoint
+3. Extract deterministic latent means with `src/pipelines/latent_extraction.py`
+4. Analyze or sweep native latent axes with `src/pipelines/native_latent.py`
+5. Inspect reconstruction quality and latent behavior in `colab/train_colab.ipynb`
 
-Important inversion rule for `PC2`:
-
-- lower `PC2` = higher physical amplitude
-- higher semantic `intensity` = stronger vibration
-
-The runtime source of truth is:
-
-- `semantic_control_schema.json`
-- `src/semantic/pc_semantics.py`
-- `src/semantic/mapping.py`
-- `run_llm_to_haptic.py`
-
-The Colab notebook is retained as labeling / calibration evidence and is not the runtime pipeline.
-
-## Semantic-to-Haptic Pipeline
-
-```text
-UI / multimodal input
--> LLM semantic interpretation
--> canonical semantic controls
--> PCA vector
--> haptic waveform
-```
-
-The semantic layer exposes a normal-direction control object:
-
-```json
-{
-  "frequency": 0.5,
-  "intensity": 0.5,
-  "envelope_modulation": 0.5,
-  "temporal_grouping": 0.5,
-  "sharpness": 0.5
-}
-```
-
-Internally, `intensity` is mapped to the inverted `PC2` axis.
-
-LLM-facing outputs must use canonical semantic keys only. They must not emit raw `PC1..PC8` values or low-level waveform parameters.
-
-## Training / Frozen Pipeline
-
-The current generation stack remains:
-
-1. Train or load the frozen VAE
-2. Extract latent vectors
-3. Fit PCA / Varimax controls
-4. Map semantic controls into PCA coefficients
-5. Decode waveform from the frozen model
-
-Useful entrypoints:
+## Key Entry Points
 
 - `scripts/train.py`
-- `scripts/extract_and_pca.py`
-- `scripts/build_controls.py`
-- `scripts/validate_extended.py`
-- `run_llm_to_haptic.py`
+- `configs/vae_balanced_8d.yaml`
+- `src/pipelines/latent_extraction.py`
+- `src/pipelines/native_latent.py`
+- `colab/train_colab.ipynb`
 
-## Rule-Based Fallback
+## Notes
 
-`baseline/rule_based_controls.py` provides coarse semantic fallback presets when no structured LLM semantic output is available. It is a fallback only, not a second control system.
+- The training loop, model definitions, and checkpoint flow remain unchanged.
+- The Colab notebook is the main training-and-observation entry point on this branch.
+- Older PCA-specific control and semantic labeling code has been removed from this branch to keep the workflow aligned with direct latent training.

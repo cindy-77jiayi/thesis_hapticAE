@@ -58,14 +58,29 @@ def build_dataloaders(
         sr_expect=data_cfg["sr"],
         scale=data_cfg["scale"],
         use_minmax=data_cfg.get("use_minmax", False),
+        clip_range=tuple(data_cfg.get("clip_range", [-3.0, 3.0])),
+        segment_tries=int(data_cfg.get("segment_tries", 30)),
+        min_energy=float(data_cfg.get("min_energy", 5e-4)),
+        max_resample=int(data_cfg.get("max_resample", 5)),
+        search_window_seconds=data_cfg.get("search_window_seconds", None),
+        segment_top_k=int(data_cfg.get("segment_top_k", 4)),
+        random_segment_prob=float(data_cfg.get("random_segment_prob", 0.0)),
     )
+    aug_cfg = data_cfg.get("augmentation", {})
+    use_augmentation = bool(aug_cfg.get("enabled", False))
 
     result = {"wav_files": wav_files}
 
     if full_dataset:
         global_rms = estimate_global_rms(wav_files, n=200, sr_expect=data_cfg["sr"])
         result["global_rms"] = global_rms
-        all_ds = HapticWavDataset(wav_files, global_rms=global_rms, **ds_kwargs)
+        all_ds = HapticWavDataset(
+            wav_files,
+            global_rms=global_rms,
+            augment=False,
+            augmentation_config={},
+            **ds_kwargs,
+        )
         loader_kwargs = {
             "batch_size": bs,
             "shuffle": False,
@@ -110,8 +125,20 @@ def build_dataloaders(
     result["train_files"] = train_files
     result["val_files"] = val_files
 
-    train_ds = HapticWavDataset(train_files, global_rms=global_rms, **ds_kwargs)
-    val_ds = HapticWavDataset(val_files, global_rms=global_rms, **ds_kwargs)
+    train_ds = HapticWavDataset(
+        train_files,
+        global_rms=global_rms,
+        augment=use_augmentation,
+        augmentation_config=aug_cfg,
+        **ds_kwargs,
+    )
+    val_ds = HapticWavDataset(
+        val_files,
+        global_rms=global_rms,
+        augment=False,
+        augmentation_config={},
+        **ds_kwargs,
+    )
     loader_common = {
         "batch_size": bs,
         "num_workers": num_workers,

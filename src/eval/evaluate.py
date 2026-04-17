@@ -54,6 +54,7 @@ def evaluate_reconstruction(
     is_vae: bool = True,
     sr: int = 8000,
     clamp_range: float | None = 3.0,
+    deterministic: bool = False,
 ) -> dict:
     """Run model on a batch from the loader and compute quality metrics.
 
@@ -68,7 +69,12 @@ def evaluate_reconstruction(
 
     with torch.no_grad():
         if is_vae:
-            x_hat, mu, logvar, z = model(x)
+            if deterministic:
+                _, mu, logvar = model.encode(x)
+                z = mu
+                x_hat = model.decode(mu, target_len=x.shape[-1])
+            else:
+                x_hat, mu, logvar, z = model(x)
         else:
             x_hat, z = model(x)
             mu = logvar = None
@@ -129,6 +135,7 @@ def evaluate_reconstruction(
         "x_np": x_np,
         "xhat_np": xhat_np,
         "z": z.cpu().numpy(),
+        "deterministic": bool(deterministic and is_vae),
         "per_sample": metrics,
         "reconstruction_summary": {
             "mse_mean": float(np.mean([m["mse"] for m in metrics])),
@@ -153,7 +160,10 @@ def evaluate_reconstruction(
 
 def print_metrics(result: dict):
     """Pretty-print reconstruction quality metrics."""
-    print("Reconstruction Quality (Standard Deviation):")
+    if result.get("deterministic"):
+        print("Reconstruction Quality (Deterministic mu decode):")
+    else:
+        print("Reconstruction Quality (Standard Deviation):")
     print("-" * 70)
     for m in result["per_sample"]:
         print(

@@ -81,6 +81,7 @@ class Trainer:
         val_cfg = config.get("validation", {})
         self.sample_every = int(val_cfg.get("sample_every", 0) or 0)
         self.sample_n = int(val_cfg.get("n_samples", 4))
+        self.deterministic_vae = bool(val_cfg.get("deterministic_vae", True))
 
         self.history: list[dict] = []
         self.train_losses: list[float] = []
@@ -212,7 +213,11 @@ class Trainer:
         preview_context = self.ema.apply_to(self.model) if self.ema is not None else nullcontext()
         with torch.no_grad(), preview_context:
             if self.is_vae:
-                x_hat, _, _, _ = self.model(batch)
+                if self.deterministic_vae:
+                    _, mu, _ = self.model.encode(batch)
+                    x_hat = self.model.decode(mu, target_len=batch.shape[-1])
+                else:
+                    x_hat, _, _, _ = self.model(batch)
             else:
                 x_hat, _ = self.model(batch)
             x_hat = torch.clamp(x_hat, -self.clamp_range, self.clamp_range)
@@ -354,4 +359,3 @@ class Trainer:
             "best_epoch": self.best_epoch,
             "run_dir": self.artifacts.run_dir,
         }
-
