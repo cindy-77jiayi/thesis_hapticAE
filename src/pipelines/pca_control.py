@@ -435,6 +435,7 @@ def plot_sweep(
     values = sweep_result["values"]
     signals = sweep_result["signals"]
     axis = sweep_result["axis"]
+    axis_label = sweep_result.get("axis_label", f"PC{axis + 1}")
     n = len(values)
 
     if overlay:
@@ -450,7 +451,7 @@ def plot_sweep(
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Amplitude")
         ax.set_title(
-            f"Single-axis sweep overlay: PC{axis+1} from {values[0]:.1f} to {values[-1]:.1f}"
+            f"Single-axis sweep overlay: {axis_label} from {values[0]:.1f} to {values[-1]:.1f}"
         )
         ax.set_ylim(-3.5, 3.5)
         ax.legend(title="Sweep value", ncol=min(3, n), fontsize=8, title_fontsize=9)
@@ -479,7 +480,7 @@ def plot_sweep(
                 )
 
             interactive_fig.update_layout(
-                title=f"Interactive overlay: PC{axis+1}",
+                title=f"Interactive overlay: {axis_label}",
                 xaxis_title="Time (s)",
                 yaxis_title="Amplitude",
                 template="plotly_white",
@@ -512,11 +513,11 @@ def plot_sweep(
     for i, (val, sig) in enumerate(zip(values, signals)):
         t = np.arange(len(sig)) / sr
         axes[i].plot(t, sig, linewidth=0.5)
-        axes[i].set_ylabel(f"PC{axis+1}={val:+.1f}", fontsize=9)
+        axes[i].set_ylabel(f"{axis_label}={val:+.1f}", fontsize=9)
         axes[i].set_ylim(-3.5, 3.5)
 
     axes[-1].set_xlabel("Time (s)")
-    fig.suptitle(f"Single-axis sweep: PC{axis+1} from {values[0]:.1f} to {values[-1]:.1f}", fontsize=12)
+    fig.suptitle(f"Single-axis sweep: {axis_label} from {values[0]:.1f} to {values[-1]:.1f}", fontsize=12)
     plt.tight_layout()
 
     if save_path:
@@ -533,9 +534,10 @@ def play_sweep(sweep_result: dict, sr: int = 8000):
     values = sweep_result["values"]
     signals = sweep_result["signals"]
     axis = sweep_result["axis"]
+    axis_label = sweep_result.get("axis_label", f"PC{axis + 1}")
 
     for val, sig in zip(values, signals):
         sig_norm = sig / (np.max(np.abs(sig)) + 1e-8)
         sig_norm = np.clip(sig_norm, -1.0, 1.0)
-        print(f"PC{axis+1} = {val:+.2f}  |  max={np.max(np.abs(sig)):.4f}")
+        print(f"{axis_label} = {val:+.2f}  |  max={np.max(np.abs(sig)):.4f}")
         display(Audio(sig_norm, rate=sr))

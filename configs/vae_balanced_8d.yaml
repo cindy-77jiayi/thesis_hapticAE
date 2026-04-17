@@ -1,0 +1,6 @@
+base_config: vae_balanced.yaml
+
+run_name: vae_balanced_8d
+
+model:
+  latent_dim: 8
