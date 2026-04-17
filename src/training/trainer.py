@@ -92,10 +92,19 @@ class Trainer:
         self.start_epoch = 1
         self.wait = 0
 
-    def _compute_loss(self, x, epoch: int) -> tuple[torch.Tensor, dict[str, float]]:
+    def _compute_loss(
+        self,
+        x,
+        epoch: int,
+        deterministic_vae: bool = False,
+    ) -> tuple[torch.Tensor, dict[str, float]]:
         """Forward pass + loss computation for both VAE and AE."""
         if self.is_vae:
-            x_hat_raw, mu, logvar, z = self.model(x)
+            if deterministic_vae:
+                z, mu, logvar = self.model.encode(x)
+                x_hat_raw = self.model.decode(mu, target_len=x.shape[-1])
+            else:
+                x_hat_raw, mu, logvar, z = self.model(x)
         else:
             x_hat_raw, z = self.model(x)
             mu = logvar = None
@@ -174,7 +183,11 @@ class Trainer:
             if train:
                 self.optimizer.zero_grad(set_to_none=True)
 
-            loss, metrics = self._compute_loss(x, epoch)
+            loss, metrics = self._compute_loss(
+                x,
+                epoch,
+                deterministic_vae=(not train and self.deterministic_vae),
+            )
             if not torch.isfinite(loss):
                 continue
 

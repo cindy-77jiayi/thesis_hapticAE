@@ -1,6 +1,7 @@
 """Data preprocessing utilities for haptic WAV signals."""
 
 import glob
+import hashlib
 import json
 import os
 import random
@@ -129,11 +130,13 @@ def load_segment_energy(
     random_segment_prob: float = 0.0,
     augment: bool = False,
     augmentation_config: dict | None = None,
+    rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Load a WAV file and extract an energy-rich segment of length T.
 
     The segment is RMS-normalized, scaled, optionally augmented, and clipped.
     """
+    rng = rng or np.random.default_rng()
     y, _ = load_audio(path, target_sr=sr_expect, target_channels=1)
     y = y[0]
 
@@ -146,7 +149,7 @@ def load_segment_energy(
     for _ in range(max_resample):
         y_view = y
         if search_window_T is not None and len(y) > search_window_T:
-            start = int(np.random.randint(0, len(y) - search_window_T + 1))
+            start = int(rng.integers(0, len(y) - search_window_T + 1))
             y_view = y[start : start + search_window_T]
 
         if len(y_view) < T:
@@ -156,7 +159,7 @@ def load_segment_energy(
         candidates: list[tuple[float, np.ndarray]] = []
 
         for _ in range(tries):
-            start = int(np.random.randint(0, max_start + 1))
+            start = int(rng.integers(0, max_start + 1))
             seg = y_view[start : start + T]
             seg = seg - np.mean(seg)
             e = float(np.mean(seg**2))
@@ -167,10 +170,10 @@ def load_segment_energy(
 
         candidates.sort(key=lambda item: item[0], reverse=True)
         top_count = max(1, min(int(top_k), len(candidates)))
-        if random_segment_prob > 0 and np.random.random() < random_segment_prob:
-            best_energy, best_seg = candidates[int(np.random.randint(0, len(candidates)))]
+        if random_segment_prob > 0 and rng.random() < random_segment_prob:
+            best_energy, best_seg = candidates[int(rng.integers(0, len(candidates)))]
         else:
-            best_energy, best_seg = candidates[int(np.random.randint(0, top_count))]
+            best_energy, best_seg = candidates[int(rng.integers(0, top_count))]
 
         if best_energy > best_energy_global:
             best_energy_global = best_energy
@@ -194,6 +197,7 @@ def load_segment_energy(
             shift_max=int(aug_cfg.get("shift_max", 0)),
             dropout_prob=float(aug_cfg.get("dropout_prob", 0.0)),
             dropout_width=int(aug_cfg.get("dropout_width", 0)),
+            rng=rng,
         )
 
     seg = np.clip(seg, clip_range[0], clip_range[1])
@@ -202,3 +206,10 @@ def load_segment_energy(
         seg = minmax_norm(seg)
 
     return seg.astype(np.float32)
+
+
+def stable_segment_seed(path: str, idx: int) -> int:
+    """Build a stable per-sample seed for deterministic dataset sampling."""
+    key = f"{idx}:{os.path.abspath(path)}".encode("utf-8")
+    digest = hashlib.blake2b(key, digest_size=8).digest()
+    return int.from_bytes(digest, "little", signed=False)

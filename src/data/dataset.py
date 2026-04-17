@@ -3,7 +3,9 @@
 import torch
 from torch.utils.data import Dataset
 
-from .preprocessing import load_segment_energy
+import numpy as np
+
+from .preprocessing import load_segment_energy, stable_segment_seed
 
 
 class HapticWavDataset(Dataset):
@@ -26,6 +28,7 @@ class HapticWavDataset(Dataset):
         random_segment_prob: float = 0.0,
         augment: bool = False,
         augmentation_config: dict | None = None,
+        deterministic: bool = False,
     ):
         self.files = files
         self.T = T
@@ -42,11 +45,16 @@ class HapticWavDataset(Dataset):
         self.random_segment_prob = random_segment_prob
         self.augment = augment
         self.augmentation_config = augmentation_config or {}
+        self.deterministic = deterministic
 
     def __len__(self) -> int:
         return len(self.files)
 
     def __getitem__(self, idx: int) -> torch.Tensor:
+        rng = None
+        if self.deterministic:
+            rng = np.random.default_rng(stable_segment_seed(self.files[idx], idx))
+
         x = load_segment_energy(
             self.files[idx],
             T=self.T,
@@ -63,5 +71,6 @@ class HapticWavDataset(Dataset):
             random_segment_prob=self.random_segment_prob,
             augment=self.augment,
             augmentation_config=self.augmentation_config,
+            rng=rng,
         )
         return torch.from_numpy(x).unsqueeze(0)  # (1, T)

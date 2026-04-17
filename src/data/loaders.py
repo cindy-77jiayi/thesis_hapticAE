@@ -79,6 +79,7 @@ def build_dataloaders(
             global_rms=global_rms,
             augment=False,
             augmentation_config={},
+            deterministic=True,
             **ds_kwargs,
         )
         loader_kwargs = {
@@ -130,14 +131,20 @@ def build_dataloaders(
         global_rms=global_rms,
         augment=use_augmentation,
         augmentation_config=aug_cfg,
+        deterministic=False,
         **ds_kwargs,
     )
+    val_ds_kwargs = dict(ds_kwargs)
+    val_ds_kwargs["segment_top_k"] = 1
+    val_ds_kwargs["random_segment_prob"] = 0.0
+    val_ds_kwargs["search_window_seconds"] = None
     val_ds = HapticWavDataset(
         val_files,
         global_rms=global_rms,
         augment=False,
         augmentation_config={},
-        **ds_kwargs,
+        deterministic=True,
+        **val_ds_kwargs,
     )
     loader_common = {
         "batch_size": bs,
