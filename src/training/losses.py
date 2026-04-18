@@ -115,6 +115,20 @@ def amplitude_loss(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     return rms_diff + peak_diff
 
 
+def temporal_derivative_loss(
+    x_hat: torch.Tensor,
+    x: torch.Tensor,
+    use_l1: bool = True,
+) -> torch.Tensor:
+    """Penalize mismatch in first-order temporal differences."""
+    dx = x[..., 1:] - x[..., :-1]
+    dx_hat = x_hat[..., 1:] - x_hat[..., :-1]
+
+    if use_l1:
+        return torch.mean(torch.abs(dx_hat - dx))
+    return torch.mean((dx_hat - dx) ** 2)
+
+
 def kl_divergence_free_bits(
     mu: torch.Tensor, logvar: torch.Tensor, free_bits: float = 0.1
 ) -> torch.Tensor:

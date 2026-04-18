@@ -22,6 +22,7 @@ from .losses import (
     kl_divergence_free_bits,
     multiscale_stft_loss,
     multi_scale_spectral_loss,
+    temporal_derivative_loss,
 )
 from .schedulers import cyclical_beta_schedule
 
@@ -55,8 +56,10 @@ class Trainer:
         self.w_spec = loss_cfg.get("spectral_weight", 0.15)
         self.w_amp = loss_cfg.get("amplitude_weight", 0.5)
         self.w_fft = loss_cfg.get("fft_weight", 0.0)
+        self.w_delta = loss_cfg.get("delta_weight", 0.0)
         self.clamp_range = loss_cfg.get("clamp_range", 3.0)
         self.recon_time_weight = loss_cfg.get("recon_time_weight", 1.0)
+        self.delta_use_l1 = bool(loss_cfg.get("delta_use_l1", True))
 
         self.use_multiscale_stft_loss = loss_cfg.get("use_multiscale_stft_loss", False)
         self.stft_scales = loss_cfg.get("stft_scales", [128, 256, 512, 1024])
@@ -144,6 +147,15 @@ class Trainer:
             fft = self.w_fft * fft_mag_mse(x_hat, x)
             recon = recon + fft
 
+        delta = torch.zeros((), device=x.device)
+        if self.w_delta > 0:
+            delta = self.w_delta * temporal_derivative_loss(
+                x_hat,
+                x,
+                use_l1=self.delta_use_l1,
+            )
+            recon = recon + delta
+
         loss = recon
         beta = 0.0
         kl_value = torch.zeros((), device=x.device)
@@ -166,6 +178,7 @@ class Trainer:
             "spectral": float(spectral.detach().item()),
             "amplitude": float(amp.detach().item()),
             "fft": float(fft.detach().item()),
+            "delta": float(delta.detach().item()),
             "kl": float(kl_value.detach().item()),
             "beta": float(beta),
         }

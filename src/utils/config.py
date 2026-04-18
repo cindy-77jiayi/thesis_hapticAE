@@ -93,6 +93,8 @@ _DEFAULTS = {
         "spectral_weight": 0.15,
         "amplitude_weight": 0.5,
         "fft_weight": 0.0,
+        "delta_weight": 0.0,
+        "delta_use_l1": True,
         "clamp_range": 3.0,
     },
 
