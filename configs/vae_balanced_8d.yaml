@@ -1,10 +1,13 @@
-base_config: vae_balanced.yaml
-
+seed: 42
+model_type: vae
 run_name: vae_balanced_8d
 
 data:
+  sr: 8000
   T: 16000
   scale: 0.25
+  use_minmax: false
+  train_split: 0.8
   clip_range: [-5.0, 5.0]
   segment_tries: 48
   segment_top_k: 8
@@ -25,12 +28,51 @@ model:
   channels: [48, 96, 192, 256]
   first_kernel: 31
   kernel_size: 11
+  activation: leaky_relu
+  norm: group
+  logvar_clip: [-10.0, 10.0]
 
 training:
   batch_size: 8
+  epochs: 200
+  patience: 15
+  min_delta: 0.001
+  early_stop_start: 20
+  grad_clip: 1.0
+  print_every: 10
+  num_workers: 0
+  pin_memory: false
+  persistent_workers: false
+  prefetch_factor: null
+
+optimizer:
+  lr: 0.0002
+  weight_decay: 0.00001
+
+scheduler:
+  factor: 0.5
+  patience: 20
+
+ema:
+  use: false
+  decay: 0.999
+
+checkpoint:
+  save_last: true
+  save_best: true
+  save_every: 0
+  keep_last: 0
+
+validation:
+  sample_every: 0
+  n_samples: 4
+  deterministic_vae: true
 
 loss:
+  l1_weight: 0.2
+  spectral_weight: 0.15
   amplitude_weight: 0.8
+  fft_weight: 0.0
   clamp_range: 5.0
   use_multiscale_stft_loss: true
   recon_time_weight: 1.8
@@ -40,11 +82,10 @@ loss:
   stft_scale_weights: [1.1, 1.0, 0.9, 0.7, 0.5]
   stft_linear_weight: 0.03
   stft_log_weight: 0.04
+  stft_eps: 0.0000001
 
 kl:
   free_bits: 0.05
   beta_max: 0.0003
   n_cycles: 4
-
-validation:
-  deterministic_vae: true
+  ratio: 0.5
