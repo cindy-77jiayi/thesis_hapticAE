@@ -4,7 +4,7 @@ run_name: vae_balanced_8d
 
 data:
   T: 16000
-  scale: 0.22
+  scale: 0.25
   clip_range: [-5.0, 5.0]
   segment_tries: 48
   segment_top_k: 8
@@ -15,10 +15,10 @@ data:
   augmentation:
     enabled: true
     gain_range: [0.8, 1.2]
-    noise_std: 0.02
-    shift_max: 192
-    dropout_prob: 0.35
-    dropout_width: 192
+    noise_std: 0.005
+    shift_max: 64
+    dropout_prob: 0.0
+    dropout_width: 0
 
 model:
   latent_dim: 8
@@ -30,20 +30,20 @@ training:
   batch_size: 8
 
 loss:
-  amplitude_weight: 0.35
+  amplitude_weight: 0.8
   clamp_range: 5.0
   use_multiscale_stft_loss: true
-  recon_time_weight: 1.4
+  recon_time_weight: 1.8
   stft_scales: [64, 128, 256, 512, 1024]
   stft_hop_lengths: [16, 32, 64, 128, 256]
   stft_win_lengths: [64, 128, 256, 512, 1024]
   stft_scale_weights: [1.1, 1.0, 0.9, 0.7, 0.5]
-  stft_linear_weight: 0.06
-  stft_log_weight: 0.08
+  stft_linear_weight: 0.03
+  stft_log_weight: 0.04
 
 kl:
-  free_bits: 0.2
-  beta_max: 0.001
+  free_bits: 0.05
+  beta_max: 0.0003
   n_cycles: 4
 
 validation:
