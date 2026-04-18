@@ -1,30 +1,30 @@
 seed: 42
 model_type: vae
-run_name: vae_balanced_8d
+run_name: vae_balanced_16d
 
 data:
   sr: 8000
-  T: 16000
+  T: 8000
   scale: 0.25
   use_minmax: false
   train_split: 0.8
   clip_range: [-5.0, 5.0]
-  segment_tries: 48
-  segment_top_k: 8
+  segment_tries: 32
+  segment_top_k: 4
   max_resample: 6
   min_energy: 0.0001
-  random_segment_prob: 0.15
+  random_segment_prob: 0.0
   search_window_seconds: 5.0
   augmentation:
-    enabled: true
+    enabled: false
     gain_range: [0.8, 1.2]
     noise_std: 0.005
-    shift_max: 64
+    shift_max: 32
     dropout_prob: 0.0
     dropout_width: 0
 
 model:
-  latent_dim: 8
+  latent_dim: 16
   channels: [48, 96, 192, 256]
   first_kernel: 31
   kernel_size: 11
@@ -47,14 +47,14 @@ training:
 
 optimizer:
   lr: 0.0002
-  weight_decay: 0.00001
+  weight_decay: 0.00005
 
 scheduler:
   factor: 0.5
   patience: 20
 
 ema:
-  use: false
+  use: true
   decay: 0.999
 
 checkpoint:
@@ -73,19 +73,21 @@ loss:
   spectral_weight: 0.15
   amplitude_weight: 0.8
   fft_weight: 0.0
+  delta_weight: 0.1
+  delta_use_l1: true
   clamp_range: 5.0
   use_multiscale_stft_loss: true
   recon_time_weight: 1.8
-  stft_scales: [64, 128, 256, 512, 1024]
-  stft_hop_lengths: [16, 32, 64, 128, 256]
-  stft_win_lengths: [64, 128, 256, 512, 1024]
-  stft_scale_weights: [1.1, 1.0, 0.9, 0.7, 0.5]
+  stft_scales: [64, 128, 256, 512]
+  stft_hop_lengths: [16, 32, 64, 128]
+  stft_win_lengths: [64, 128, 256, 512]
+  stft_scale_weights: [1.1, 1.0, 0.8, 0.6]
   stft_linear_weight: 0.03
   stft_log_weight: 0.04
   stft_eps: 0.0000001
 
 kl:
   free_bits: 0.05
-  beta_max: 0.0003
+  beta_max: 0.0005
   n_cycles: 4
   ratio: 0.5
