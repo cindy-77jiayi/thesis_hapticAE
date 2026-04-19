@@ -1,6 +1,6 @@
 ## Arduino Integration Contract
 
-This prototype now uses anonymous vibration IDs `1..60` instead of exposing the underlying waveform slot to participants.
+This prototype now uses anonymous vibration IDs `1..60` instead of exposing the underlying waveform label to participants.
 
 ### Browser -> ESP32
 
@@ -12,7 +12,7 @@ This prototype now uses anonymous vibration IDs `1..60` instead of exposing the 
   - `27\n`
   - `60\n`
 
-### Anonymous ID mapping
+### Anonymous ID ranges
 
 The browser sends one anonymous ID per replay or selection:
 
@@ -21,12 +21,30 @@ The browser sends one anonymous ID per replay or selection:
 - Notification block: `31..45`
 - Loading block: `46..60`
 
-The included sketch maps those 60 IDs back to 15 waveform slots with a repeated lookup table:
+The included sketch now defines 60 independent placeholders using raw `uint8_t` waveform arrays:
 
-- `1..15 -> waveform 1..15`
-- `16..30 -> waveform 1..15`
-- `31..45 -> waveform 1..15`
-- `46..60 -> waveform 1..15`
+- `STIMULUS_01`
+- `STIMULUS_02`
+- ...
+- `STIMULUS_60`
+
+You can paste your own exported arrays directly into each placeholder without changing the browser protocol.
+
+Example format:
+
+```cpp
+const uint8_t STIMULUS_01[] = {
+  236,248,238,239,248,238,236,245,
+  239,235,247,237,223,237,255,213,
+  107,138,87,112,85,81,87,88,
+  0,0,0,0
+};
+```
+
+The sketch replays each sample at `DEFAULT_SAMPLE_INTERVAL_MS`, which is currently set to `5 ms`.
+If your exported data was generated with a different interval, update that constant in:
+
+- [esp32_haptic_panel.ino](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\esp32_haptic_panel.ino)
 
 ### Included sketch
 
@@ -40,7 +58,7 @@ The sketch includes:
 - DRV2605L initialization on `SDA=21`, `SCL=22`, `0x5A`
 - ERM configuration
 - RTP playback mode
-- 15 placeholder waveform arrays
+- 60 placeholder stimulus arrays
 - Safe stop after playback
 - Optional serial debug output:
   - `READY`
@@ -54,7 +72,7 @@ You can still use your own Arduino code as long as it follows this contract:
 
 1. Read newline-terminated integers from serial.
 2. Accept values `1..60`.
-3. Map each anonymous ID to the real waveform slot you want to play.
+3. Map each anonymous ID to the real waveform you want to play, or store one array per ID.
 4. Trigger the motor.
 5. Stop the motor cleanly after playback.
 

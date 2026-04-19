@@ -784,7 +784,7 @@ export function StudyApp() {
             </div>
 
             <div className="overflow-x-auto rounded-[34px] border border-white/70 bg-white/85 p-6 shadow-[0_30px_120px_rgba(15,23,42,0.12)] backdrop-blur">
-              <div className="grid min-w-[1280px] gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+              <div className="grid min-w-[1360px] gap-6 xl:grid-cols-[500px_minmax(0,1fr)]">
                 <div className="space-y-5">
                   <div className="rounded-[32px] border border-slate-200 bg-slate-50/80 p-5">
                     <div className="mb-4 flex items-center justify-between">
