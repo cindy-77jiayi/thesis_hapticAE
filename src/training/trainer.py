@@ -18,10 +18,13 @@ from .builders import build_ema, build_optimizer, build_scheduler
 from .checkpointing import CheckpointManager, RunArtifacts, save_history_json
 from .losses import (
     amplitude_loss,
+    envelope_loss,
     fft_mag_mse,
+    isolated_peak_loss,
     kl_divergence_free_bits,
     multiscale_stft_loss,
     multi_scale_spectral_loss,
+    second_diff_loss,
     temporal_derivative_loss,
 )
 from .schedulers import cyclical_beta_schedule
@@ -57,9 +60,16 @@ class Trainer:
         self.w_amp = loss_cfg.get("amplitude_weight", 0.5)
         self.w_fft = loss_cfg.get("fft_weight", 0.0)
         self.w_delta = loss_cfg.get("delta_weight", 0.0)
+        self.w_second_diff = loss_cfg.get("second_diff_weight", 0.0)
+        self.w_peak = loss_cfg.get("isolated_peak_weight", 0.0)
+        self.w_env = loss_cfg.get("envelope_weight", 0.0)
         self.clamp_range = loss_cfg.get("clamp_range", 3.0)
         self.recon_time_weight = loss_cfg.get("recon_time_weight", 1.0)
         self.delta_use_l1 = bool(loss_cfg.get("delta_use_l1", True))
+        self.second_diff_use_l1 = bool(loss_cfg.get("second_diff_use_l1", True))
+        self.peak_kernel = int(loss_cfg.get("isolated_peak_kernel", 9))
+        self.envelope_kernel = int(loss_cfg.get("envelope_kernel", 81))
+        self.envelope_use_l1 = bool(loss_cfg.get("envelope_use_l1", True))
 
         self.use_multiscale_stft_loss = loss_cfg.get("use_multiscale_stft_loss", False)
         self.stft_scales = loss_cfg.get("stft_scales", [128, 256, 512, 1024])
@@ -156,6 +166,34 @@ class Trainer:
             )
             recon = recon + delta
 
+        second_diff = torch.zeros((), device=x.device)
+        if self.w_second_diff > 0:
+            second_diff = self.w_second_diff * second_diff_loss(
+                x_hat,
+                x,
+                use_l1=self.second_diff_use_l1,
+            )
+            recon = recon + second_diff
+
+        peak = torch.zeros((), device=x.device)
+        if self.w_peak > 0:
+            peak = self.w_peak * isolated_peak_loss(
+                x_hat,
+                x,
+                kernel_size=self.peak_kernel,
+            )
+            recon = recon + peak
+
+        envelope = torch.zeros((), device=x.device)
+        if self.w_env > 0:
+            envelope = self.w_env * envelope_loss(
+                x_hat,
+                x,
+                kernel_size=self.envelope_kernel,
+                use_l1=self.envelope_use_l1,
+            )
+            recon = recon + envelope
+
         loss = recon
         beta = 0.0
         kl_value = torch.zeros((), device=x.device)
@@ -179,6 +217,9 @@ class Trainer:
             "amplitude": float(amp.detach().item()),
             "fft": float(fft.detach().item()),
             "delta": float(delta.detach().item()),
+            "second_diff": float(second_diff.detach().item()),
+            "isolated_peak": float(peak.detach().item()),
+            "envelope": float(envelope.detach().item()),
             "kl": float(kl_value.detach().item()),
             "beta": float(beta),
         }

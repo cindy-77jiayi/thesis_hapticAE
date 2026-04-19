@@ -1,6 +1,7 @@
 """Loss functions for haptic signal reconstruction."""
 
 import torch
+import torch.nn.functional as F
 from collections.abc import Sequence
 
 
@@ -127,6 +128,58 @@ def temporal_derivative_loss(
     if use_l1:
         return torch.mean(torch.abs(dx_hat - dx))
     return torch.mean((dx_hat - dx) ** 2)
+
+
+def second_diff_loss(
+    x_hat: torch.Tensor,
+    x: torch.Tensor,
+    use_l1: bool = True,
+) -> torch.Tensor:
+    """Penalize mismatch in second-order temporal differences."""
+    ddx = x[..., 2:] - 2 * x[..., 1:-1] + x[..., :-2]
+    ddx_hat = x_hat[..., 2:] - 2 * x_hat[..., 1:-1] + x_hat[..., :-2]
+
+    if use_l1:
+        return torch.mean(torch.abs(ddx_hat - ddx))
+    return torch.mean((ddx_hat - ddx) ** 2)
+
+
+def isolated_peak_loss(
+    x_hat: torch.Tensor,
+    x: torch.Tensor,
+    kernel_size: int = 9,
+) -> torch.Tensor:
+    """Penalize predicted local spikes that exceed target-local salience."""
+    if kernel_size % 2 == 0:
+        raise ValueError("isolated_peak kernel_size must be odd")
+
+    abs_hat = torch.abs(x_hat)
+    abs_x = torch.abs(x)
+
+    local_hat = F.avg_pool1d(abs_hat, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
+    local_x = F.avg_pool1d(abs_x, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
+
+    excess_hat = torch.relu(abs_hat - local_hat)
+    excess_x = torch.relu(abs_x - local_x)
+    return torch.mean(torch.relu(excess_hat - excess_x))
+
+
+def envelope_loss(
+    x_hat: torch.Tensor,
+    x: torch.Tensor,
+    kernel_size: int = 81,
+    use_l1: bool = True,
+) -> torch.Tensor:
+    """Compare smoothed amplitude envelopes."""
+    if kernel_size % 2 == 0:
+        raise ValueError("envelope kernel_size must be odd")
+
+    env_hat = F.avg_pool1d(torch.abs(x_hat), kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
+    env_x = F.avg_pool1d(torch.abs(x), kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
+
+    if use_l1:
+        return torch.mean(torch.abs(env_hat - env_x))
+    return torch.mean((env_hat - env_x) ** 2)
 
 
 def kl_divergence_free_bits(

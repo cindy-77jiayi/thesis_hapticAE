@@ -95,6 +95,13 @@ _DEFAULTS = {
         "fft_weight": 0.0,
         "delta_weight": 0.0,
         "delta_use_l1": True,
+        "second_diff_weight": 0.0,
+        "second_diff_use_l1": True,
+        "isolated_peak_weight": 0.0,
+        "isolated_peak_kernel": 9,
+        "envelope_weight": 0.0,
+        "envelope_kernel": 81,
+        "envelope_use_l1": True,
         "clamp_range": 3.0,
     },
 

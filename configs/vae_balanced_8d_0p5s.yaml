@@ -75,6 +75,13 @@ loss:
   fft_weight: 0.0
   delta_weight: 0.1
   delta_use_l1: true
+  second_diff_weight: 0.02
+  second_diff_use_l1: true
+  isolated_peak_weight: 0.015
+  isolated_peak_kernel: 9
+  envelope_weight: 0.03
+  envelope_kernel: 81
+  envelope_use_l1: true
   clamp_range: 4.0
   use_multiscale_stft_loss: true
   recon_time_weight: 2.0
