@@ -1,55 +1,66 @@
 ## Arduino Integration Contract
 
-This prototype does not require any specific firmware implementation, but the browser app expects the ESP32 sketch to follow this serial contract.
+This prototype now uses anonymous vibration IDs `1..60` instead of exposing the underlying waveform slot to participants.
 
 ### Browser -> ESP32
 
 - Transport: Web Serial
-- Recommended baud rate: `115200`
+- Baud rate: `115200`
 - Payload format: newline-terminated ASCII integer
 - Examples:
   - `1\n`
-  - `7\n`
-  - `15\n`
+  - `27\n`
+  - `60\n`
 
-### Expected firmware behavior
+### Anonymous ID mapping
 
-When your ESP32 receives a valid integer:
+The browser sends one anonymous ID per replay or selection:
 
-1. Parse the integer value.
-2. Validate that it is in the range `1..15`.
-3. Map that value to your corresponding preloaded waveform.
-4. Play the haptic on the DRV2605L / motor.
-5. Stop the motor cleanly at the end of playback.
+- Success block: `1..15`
+- Error block: `16..30`
+- Notification block: `31..45`
+- Loading block: `46..60`
 
-### Recommended parser shape
+The included sketch maps those 60 IDs back to 15 waveform slots with a repeated lookup table:
 
-- Ignore carriage returns.
-- Use newline as the end-of-message marker.
-- Reject empty lines or out-of-range IDs.
-- It is okay if the firmware is blocking during playback, as long as the motor is safely stopped after the waveform finishes.
+- `1..15 -> waveform 1..15`
+- `16..30 -> waveform 1..15`
+- `31..45 -> waveform 1..15`
+- `46..60 -> waveform 1..15`
 
-### Optional acknowledgements
+### Included sketch
 
-The current browser app does not require a response, but these optional serial prints are useful during debugging:
+Use:
 
-- `READY`
-- `PLAYED:7`
-- `ERR:INVALID_STIMULUS`
-- `ERR:PARSE`
+- [esp32_haptic_panel.ino](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\esp32_haptic_panel.ino)
 
-### Hardware assumptions from the study design
+The sketch includes:
 
-- ESP32
-- DRV2605L
-- ERM motor
-- SDA = `21`
-- SCL = `22`
-- I2C address = `0x5A`
+- ESP32 serial parsing for anonymous IDs
+- DRV2605L initialization on `SDA=21`, `SCL=22`, `0x5A`
+- ERM configuration
+- RTP playback mode
+- 15 placeholder waveform arrays
+- Safe stop after playback
+- Optional serial debug output:
+  - `READY`
+  - `PLAYED:<id>`
+  - `ERR:INVALID_ID`
+  - `ERR:PARSE`
 
-### Where to change the browser config if needed
+### If you want to keep your own firmware
 
-If your firmware uses a different baud rate or message format, update:
+You can still use your own Arduino code as long as it follows this contract:
+
+1. Read newline-terminated integers from serial.
+2. Accept values `1..60`.
+3. Map each anonymous ID to the real waveform slot you want to play.
+4. Trigger the motor.
+5. Stop the motor cleanly after playback.
+
+### Where to change the browser side if needed
+
+If you change the baud rate or serial payload format, update:
 
 - [config.ts](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\src\app\config.ts)
 - [useSerialConnection.ts](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\src\app\hooks\useSerialConnection.ts)

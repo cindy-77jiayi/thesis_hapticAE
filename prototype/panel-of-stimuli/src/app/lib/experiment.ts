@@ -1,6 +1,18 @@
-import { CSV_HEADERS, TOTAL_STIMULI } from "../config";
-import { LIKERT_KEYS, UI_FLOW_VALUES } from "../types";
-import type { TrialDefinition, TrialResult, TrialRatings, UIFlow } from "../types";
+import {
+  BLOCK_RESULTS_CSV_HEADERS,
+  FLOW_ORDER,
+  OVERVIEW_CSV_HEADERS,
+  STIMULI_PER_FLOW,
+  TOTAL_ANON_STIMULI,
+} from "../config";
+import { LIKERT_KEYS } from "../types";
+import type {
+  FlowBlockResult,
+  FlowOverviewResult,
+  FlowRatings,
+  FlowStimulusDefinition,
+  UIFlow,
+} from "../types";
 
 function hashSeed(seed: string): number {
   let hash = 1779033703 ^ seed.length;
@@ -36,6 +48,13 @@ function shuffleInPlace<T>(items: T[], seed: string): T[] {
   return nextItems;
 }
 
+function escapeCsvValue(value: string | number): string {
+  const stringValue = String(value);
+  return /[",\n]/.test(stringValue)
+    ? `"${stringValue.replaceAll('"', '""')}"`
+    : stringValue;
+}
+
 export function generateSeed(): string {
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
     const values = new Uint32Array(1);
@@ -44,21 +63,6 @@ export function generateSeed(): string {
   }
 
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-export function createTrialPlan(seed: string): TrialDefinition[] {
-  const basePlan: Omit<TrialDefinition, "trialIndex">[] = [];
-
-  for (const uiFlow of UI_FLOW_VALUES) {
-    for (let stimulusId = 1; stimulusId <= TOTAL_STIMULI; stimulusId += 1) {
-      basePlan.push({ stimulusId, uiFlow });
-    }
-  }
-
-  return shuffleInPlace(basePlan, seed).map((trial, index) => ({
-    ...trial,
-    trialIndex: index + 1,
-  }));
 }
 
 export function formatFlowLabel(uiFlow: UIFlow): string {
@@ -72,52 +76,115 @@ export function formatFlowLabel(uiFlow: UIFlow): string {
   return labels[uiFlow];
 }
 
-function escapeCsvValue(value: string | number): string {
-  const stringValue = String(value);
-  return /[",\n]/.test(stringValue)
-    ? `"${stringValue.replaceAll('"', '""')}"`
-    : stringValue;
+export function formatFlowShortLabel(uiFlow: UIFlow): string {
+  const labels: Record<UIFlow, string> = {
+    success: "Success",
+    error: "Error",
+    notification: "Notification",
+    loading: "Loading",
+  };
+
+  return labels[uiFlow];
 }
 
-export function buildCsv(results: TrialResult[]): string {
-  const lines = [CSV_HEADERS.join(",")];
+export function waveformSlotFromAnonymousId(anonymousId: number): number {
+  return ((anonymousId - 1) % STIMULI_PER_FLOW) + 1;
+}
 
-  for (const result of results) {
-    const row: Record<(typeof CSV_HEADERS)[number], string | number> = {
+export function buildAnonymousIdToWaveformSlot(): number[] {
+  return Array.from({ length: TOTAL_ANON_STIMULI }, (_, index) => waveformSlotFromAnonymousId(index + 1));
+}
+
+export function createFlowBlocks(seed: string): Record<UIFlow, FlowStimulusDefinition[]> {
+  const blocks = {} as Record<UIFlow, FlowStimulusDefinition[]>;
+
+  FLOW_ORDER.forEach((flow, flowIndex) => {
+    const blockStart = flowIndex * STIMULI_PER_FLOW + 1;
+    const positions = shuffleInPlace(
+      Array.from({ length: STIMULI_PER_FLOW }, (_, index) => index + 1),
+      `${seed}-${flow}-grid`,
+    );
+
+    const stimuli: FlowStimulusDefinition[] = Array.from({ length: STIMULI_PER_FLOW }, (_, index) => {
+      const anonymousId = blockStart + index;
+      return {
+        anonymousId,
+        displayLabel: `A${String(anonymousId).padStart(2, "0")}`,
+        flow,
+        waveformSlot: waveformSlotFromAnonymousId(anonymousId),
+        gridPosition: positions[index],
+      };
+    });
+
+    blocks[flow] = [...stimuli].sort((left, right) => left.gridPosition - right.gridPosition);
+  });
+
+  return blocks;
+}
+
+export function isRatingsComplete(ratings: FlowRatings): boolean {
+  return LIKERT_KEYS.every((key) => typeof ratings[key] === "number");
+}
+
+export function buildBlockResultsCsv(results: FlowBlockResult[]): string {
+  const lines = [BLOCK_RESULTS_CSV_HEADERS.join(",")];
+
+  const sortedResults = [...results].sort((left, right) => left.anonymousId - right.anonymousId);
+
+  for (const result of sortedResults) {
+    const row: Record<(typeof BLOCK_RESULTS_CSV_HEADERS)[number], string | number> = {
       participant_id: result.participantId,
-      trial_index: result.trialIndex,
-      stimulus_id: result.stimulusId,
-      ui_flow: result.uiFlow,
+      flow: result.flow,
+      anonymous_id: result.anonymousId,
+      waveform_slot: result.waveformSlot,
+      grid_position: result.gridPosition,
       rating_match: result.rating_match,
-      rating_pleasant: result.rating_pleasant,
-      rating_clarity: result.rating_clarity,
-      rating_quality: result.rating_quality,
-      rating_preference: result.rating_preference,
+      rating_appropriate: result.rating_appropriate,
+      rating_meaningful: result.rating_meaningful,
       timestamp: result.timestamp,
     };
 
-    lines.push(CSV_HEADERS.map((header) => escapeCsvValue(row[header])).join(","));
+    lines.push(BLOCK_RESULTS_CSV_HEADERS.map((header) => escapeCsvValue(row[header])).join(","));
   }
 
   return lines.join("\n");
 }
 
-export function downloadCsv(results: TrialResult[], participantId: string, seed: string): void {
-  const csv = buildCsv(results);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+export function buildOverviewCsv(results: FlowOverviewResult[]): string {
+  const lines = [OVERVIEW_CSV_HEADERS.join(",")];
+
+  const flowIndexMap = new Map(FLOW_ORDER.map((flow, index) => [flow, index]));
+  const sortedResults = [...results].sort(
+    (left, right) => (flowIndexMap.get(left.flow) ?? 0) - (flowIndexMap.get(right.flow) ?? 0),
+  );
+
+  for (const result of sortedResults) {
+    const row: Record<(typeof OVERVIEW_CSV_HEADERS)[number], string> = {
+      participant_id: result.participantId,
+      flow: result.flow,
+      top3_ids: result.top3Ids.join("|"),
+      bottom_ids: result.bottomIds.join("|"),
+      top_reason: result.topReason,
+      bottom_reason: result.bottomReason,
+      timestamp: result.timestamp,
+    };
+
+    lines.push(OVERVIEW_CSV_HEADERS.map((header) => escapeCsvValue(row[header])).join(","));
+  }
+
+  return lines.join("\n");
+}
+
+export function downloadTextFile(contents: string, filename: string): void {
+  const blob = new Blob([contents], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  const safeParticipantId = participantId.replace(/[^\w-]+/g, "_");
   anchor.href = url;
-  anchor.download = `${safeParticipantId || "participant"}_panel_of_stimuli_${seed}.csv`;
+  anchor.download = filename;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
-}
-
-export function isRatingsComplete(ratings: TrialRatings): boolean {
-  return LIKERT_KEYS.every((key) => typeof ratings[key] === "number");
 }
 
 export function buildGoogleFormUrl(

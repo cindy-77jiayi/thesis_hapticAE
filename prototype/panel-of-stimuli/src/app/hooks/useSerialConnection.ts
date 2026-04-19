@@ -90,7 +90,7 @@ export function useSerialConnection(): SerialState {
       const port = portRef.current;
 
       if (!port || status !== "connected" || !port.writable) {
-        setError("Connect the ESP32 before starting or replaying a trial.");
+        setError("Connect the ESP32 before triggering a vibration.");
         return false;
       }
 
@@ -102,7 +102,9 @@ export function useSerialConnection(): SerialState {
         setError(null);
         return true;
       } catch (sendError) {
-        setError(sendError instanceof Error ? sendError.message : "Failed to send stimulus ID to the ESP32.");
+        setError(
+          sendError instanceof Error ? sendError.message : "Failed to send the anonymous vibration ID to the ESP32.",
+        );
         setStatus("disconnected");
         return false;
       } finally {

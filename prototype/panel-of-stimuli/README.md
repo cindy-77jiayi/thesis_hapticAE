@@ -1,41 +1,54 @@
-## Panel of Stimuli Study Prototype
+## Panel of Stimuli v2
 
-This directory contains a local-first user-study prototype for the haptic thesis project.
+This directory contains the local-first user-study prototype for the haptic thesis project.
 
 ### What it does
 
-- Runs a 60-trial haptic study locally in the browser
-- Uses Web Serial to send stimulus IDs `1-15` to an ESP32
-- Reuses the existing Figma/React UI flow visuals for success, error, notification, and loading
-- Captures five Likert ratings per trial
-- Exports CSV with the schema:
-  `participant_id,trial_index,stimulus_id,ui_flow,rating_match,rating_pleasant,rating_clarity,rating_quality,rating_preference,timestamp`
-- Opens Google Forms at the end when configured
+- Runs a block-based study with 4 fixed UI flows:
+  - success
+  - error
+  - notification
+  - loading
+- Shows 15 anonymous vibration cards per flow in a `3 x 5` comparison grid
+- Keeps the UI flow viewport fixed in size and position
+- Sends anonymous IDs `1..60` to an ESP32 through Web Serial
+- Captures 3 Likert ratings per anonymous ID
+- Captures one overview per flow:
+  - Top 3 best match
+  - Bottom 1 or 2 worst match
+  - Optional open-text reasons
+- Exports two CSV files:
+  - detailed block ratings
+  - flow overview selections
 
 ### Run locally
 
 1. `npm install`
 2. `npm run dev`
-3. Open the printed local URL in Chrome or Edge
+3. Open the local Vite URL in Chrome or Edge
 
-Web Serial requires a secure context, so use the Vite dev server URL such as `http://localhost:5173`.
+Web Serial requires a browser with serial support and a local secure context such as `http://localhost:5173`.
 
 ### Configure Google Forms
 
-Edit [config.ts](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\src\app\config.ts) and fill in:
+Edit [config.ts](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\src\app\config.ts) and set:
 
 - `googleFormUrl`
 - `participantPrefillEntry`
 
-If those values are left blank, the study still runs and CSV export still works.
+If these stay blank, the prototype still works and CSV export is unaffected.
 
 ### Arduino integration
 
-Use your own firmware. The front end only assumes:
+Use the included sketch:
+
+- [esp32_haptic_panel.ino](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\esp32_haptic_panel.ino)
+
+Browser payload format:
 
 - baud rate `115200`
-- newline-terminated ASCII integers
-- valid messages are `1` through `15`
-- one stimulus trigger per line, for example `7\n`
+- newline-terminated anonymous integer
+- valid messages are `1..60`
+- example: `27\n`
 
-See [ARDUINO_INTEGRATION.md](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\ARDUINO_INTEGRATION.md) for the exact browser-side expectations.
+The ESP32 sketch maps each anonymous ID back to one of 15 waveform slots.
