@@ -52,7 +52,6 @@ def evaluate_reconstruction(
     device: torch.device,
     n_samples: int = 10,
     is_vae: bool = True,
-    is_vqvae: bool = False,
     sr: int = 8000,
     clamp_range: float | None = 3.0,
     deterministic: bool = False,
@@ -76,9 +75,6 @@ def evaluate_reconstruction(
                 x_hat = model.decode(mu, target_len=x.shape[-1])
             else:
                 x_hat, mu, logvar, z = model(x)
-        elif is_vqvae:
-            x_hat, z, codes, vq_loss, vq_perplexity = model(x)
-            mu = logvar = None
         else:
             x_hat, z = model(x)
             mu = logvar = None
@@ -158,10 +154,6 @@ def evaluate_reconstruction(
         result["mu_mean"] = mu.mean().item()
         result["mu_std"] = mu.std().item()
         result["logvar_mean"] = logvar.mean().item()
-    if is_vqvae:
-        result["codes"] = codes.cpu().numpy()
-        result["vq_loss"] = float(vq_loss.item())
-        result["vq_perplexity"] = float(vq_perplexity.item())
 
     return result
 
@@ -187,11 +179,6 @@ def print_metrics(result: dict):
             f"  Latent: mu mean={result['mu_mean']:.4f}  "
             f"mu std={result['mu_std']:.4f}  "
             f"logvar mean={result['logvar_mean']:.4f}"
-        )
-    if "vq_perplexity" in result:
-        print(
-            f"  VQ: perplexity={result['vq_perplexity']:.2f}  "
-            f"vq_loss={result['vq_loss']:.6f}"
         )
 
     s = result["reconstruction_summary"]

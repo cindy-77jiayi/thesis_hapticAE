@@ -75,13 +75,6 @@ _DEFAULTS = {
         "decay": 0.999,
     },
 
-    "vq": {
-        "embedding_dim": 64,
-        "codebook_size": 256,
-        "commitment_cost": 0.25,
-        "loss_weight": 1.0,
-    },
-
     "checkpoint": {
         "save_last": True,
         "save_best": True,
@@ -102,6 +95,15 @@ _DEFAULTS = {
         "fft_weight": 0.0,
         "delta_weight": 0.0,
         "delta_use_l1": True,
+        "event_recon_weight": 0.0,
+        "event_recon_kernel": 41,
+        "event_recon_emphasis": 2.0,
+        "event_recon_floor": 1.0,
+        "event_recon_use_l1": True,
+        "local_energy_weight": 0.0,
+        "local_energy_kernel": 65,
+        "local_energy_under_weight": 2.0,
+        "local_energy_over_weight": 0.25,
         "clamp_range": 3.0,
     },
 

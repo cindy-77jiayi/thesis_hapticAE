@@ -172,7 +172,7 @@ def build_dataloaders(
 
 
 def build_model(config: dict, device: torch.device | None = None) -> nn.Module:
-    """Instantiate ConvVAE, ConvAE, or ConvVQVAE from a config dict.
+    """Instantiate ConvVAE or ConvAE from a config dict.
 
     Args:
         config: Parsed YAML config dict with 'model' and 'data' sections.
@@ -183,49 +183,27 @@ def build_model(config: dict, device: torch.device | None = None) -> nn.Module:
     """
     from src.models.conv_vae import ConvVAE
     from src.models.conv_ae import ConvAE
-    from src.models.conv_vqvae import ConvVQVAE
 
     data_cfg = config["data"]
     model_cfg = config["model"]
     model_type = config.get("model_type", "vae")
 
+    common = dict(
+        T=data_cfg["T"],
+        latent_dim=model_cfg["latent_dim"],
+        channels=tuple(model_cfg["channels"]),
+        first_kernel=model_cfg.get("first_kernel", 25),
+        kernel_size=model_cfg.get("kernel_size", 9),
+        activation=model_cfg.get("activation", "leaky_relu"),
+        norm=model_cfg.get("norm", "group"),
+    )
+
     if model_type == "vae":
-        common = dict(
-            T=data_cfg["T"],
-            latent_dim=model_cfg["latent_dim"],
-            channels=tuple(model_cfg["channels"]),
-            first_kernel=model_cfg.get("first_kernel", 25),
-            kernel_size=model_cfg.get("kernel_size", 9),
-            activation=model_cfg.get("activation", "leaky_relu"),
-            norm=model_cfg.get("norm", "group"),
-        )
         model = ConvVAE(
             **common,
             logvar_clip=tuple(model_cfg.get("logvar_clip", [-10, 10])),
         )
-    elif model_type == "vqvae":
-        vq_cfg = config.get("vq", {})
-        model = ConvVQVAE(
-            T=data_cfg["T"],
-            channels=tuple(model_cfg["channels"]),
-            first_kernel=model_cfg.get("first_kernel", 31),
-            kernel_size=model_cfg.get("kernel_size", 11),
-            activation=model_cfg.get("activation", "leaky_relu"),
-            norm=model_cfg.get("norm", "group"),
-            embedding_dim=int(vq_cfg.get("embedding_dim", model_cfg.get("embedding_dim", 64))),
-            codebook_size=int(vq_cfg.get("codebook_size", model_cfg.get("codebook_size", 256))),
-            commitment_cost=float(vq_cfg.get("commitment_cost", 0.25)),
-        )
     else:
-        common = dict(
-            T=data_cfg["T"],
-            latent_dim=model_cfg["latent_dim"],
-            channels=tuple(model_cfg["channels"]),
-            first_kernel=model_cfg.get("first_kernel", 25),
-            kernel_size=model_cfg.get("kernel_size", 9),
-            activation=model_cfg.get("activation", "leaky_relu"),
-            norm=model_cfg.get("norm", "group"),
-        )
         model = ConvAE(**common)
 
     if device is not None:
