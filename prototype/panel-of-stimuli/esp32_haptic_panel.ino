@@ -21,79 +21,108 @@ struct WaveformDefinition {
   uint16_t sampleIntervalMs;
 };
 
-// Replace each placeholder with one exported uint8_t waveform array.
-// Example:
-// const uint8_t STIMULUS_01[] = {
-//   236, 248, 238, 239, 248, 238, 236, 245,
-//   239, 235, 247, 237, 223, 237, 255, 213,
-//   107, 138, 87, 112, 85, 81, 87, 88,
-//   0, 0, 0, 0
-// };
-
 // Success block: anonymous IDs 1-15
+// RANDOM NOISE
 const uint8_t STIMULUS_01[] = {0};
 const uint8_t STIMULUS_02[] = {0};
 const uint8_t STIMULUS_03[] = {0};
+
+//RANDOM VECTOR - VAE
 const uint8_t STIMULUS_04[] = {0};
 const uint8_t STIMULUS_05[] = {0};
 const uint8_t STIMULUS_06[] = {0};
-const uint8_t STIMULUS_07[] = {0};
+
+// HAPTIC GEN
+const uint8_t STIMULUS_07[] = 
+{0
+};
 const uint8_t STIMULUS_08[] = {0};
 const uint8_t STIMULUS_09[] = {0};
+
+// LLM DIRECT
 const uint8_t STIMULUS_10[] = {0};
 const uint8_t STIMULUS_11[] = {0};
 const uint8_t STIMULUS_12[] = {0};
+
+// MY VAE
 const uint8_t STIMULUS_13[] = {0};
 const uint8_t STIMULUS_14[] = {0};
 const uint8_t STIMULUS_15[] = {0};
 
 // Error block: anonymous IDs 16-30
+// RANDOM NOISE
 const uint8_t STIMULUS_16[] = {0};
 const uint8_t STIMULUS_17[] = {0};
 const uint8_t STIMULUS_18[] = {0};
+
+//RANDOM VECTOR - VAE
 const uint8_t STIMULUS_19[] = {0};
 const uint8_t STIMULUS_20[] = {0};
 const uint8_t STIMULUS_21[] = {0};
+
+// HAPTIC GEN
 const uint8_t STIMULUS_22[] = {0};
 const uint8_t STIMULUS_23[] = {0};
 const uint8_t STIMULUS_24[] = {0};
+
+// LLM DIRECT
 const uint8_t STIMULUS_25[] = {0};
 const uint8_t STIMULUS_26[] = {0};
 const uint8_t STIMULUS_27[] = {0};
+
+// MY VAE
 const uint8_t STIMULUS_28[] = {0};
 const uint8_t STIMULUS_29[] = {0};
 const uint8_t STIMULUS_30[] = {0};
 
 // Notification block: anonymous IDs 31-45
+// RANDOM NOISE
 const uint8_t STIMULUS_31[] = {0};
 const uint8_t STIMULUS_32[] = {0};
 const uint8_t STIMULUS_33[] = {0};
+
+//RANDOM VECTOR - VAE
 const uint8_t STIMULUS_34[] = {0};
 const uint8_t STIMULUS_35[] = {0};
 const uint8_t STIMULUS_36[] = {0};
+
+// HAPTIC GEN
 const uint8_t STIMULUS_37[] = {0};
 const uint8_t STIMULUS_38[] = {0};
 const uint8_t STIMULUS_39[] = {0};
+
+// LLM DIRECT
 const uint8_t STIMULUS_40[] = {0};
 const uint8_t STIMULUS_41[] = {0};
 const uint8_t STIMULUS_42[] = {0};
+
+// MY VAE
 const uint8_t STIMULUS_43[] = {0};
 const uint8_t STIMULUS_44[] = {0};
 const uint8_t STIMULUS_45[] = {0};
 
 // Loading block: anonymous IDs 46-60
+// RANDOM NOISE
 const uint8_t STIMULUS_46[] = {0};
 const uint8_t STIMULUS_47[] = {0};
 const uint8_t STIMULUS_48[] = {0};
+
+//RANDOM VECTOR - VAE
 const uint8_t STIMULUS_49[] = {0};
 const uint8_t STIMULUS_50[] = {0};
 const uint8_t STIMULUS_51[] = {0};
+
+// HAPTIC GEN
 const uint8_t STIMULUS_52[] = {0};
 const uint8_t STIMULUS_53[] = {0};
 const uint8_t STIMULUS_54[] = {0};
+
+// LLM DIRECT
 const uint8_t STIMULUS_55[] = {0};
 const uint8_t STIMULUS_56[] = {0};
 const uint8_t STIMULUS_57[] = {0};
+
+// MY VAE
 const uint8_t STIMULUS_58[] = {0};
 const uint8_t STIMULUS_59[] = {0};
 const uint8_t STIMULUS_60[] = {0};
