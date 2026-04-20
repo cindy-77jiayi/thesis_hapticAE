@@ -75,15 +75,6 @@ loss:
   fft_weight: 0.0
   delta_weight: 0.1
   delta_use_l1: true
-  event_recon_weight: 0.5
-  event_recon_kernel: 41
-  event_recon_emphasis: 2.0
-  event_recon_floor: 1.0
-  event_recon_use_l1: true
-  local_energy_weight: 0.15
-  local_energy_kernel: 65
-  local_energy_under_weight: 2.0
-  local_energy_over_weight: 0.25
   clamp_range: 4.0
   use_multiscale_stft_loss: true
   recon_time_weight: 2.0
