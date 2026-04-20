@@ -18,13 +18,12 @@ from .builders import build_ema, build_optimizer, build_scheduler
 from .checkpointing import CheckpointManager, RunArtifacts, save_history_json
 from .losses import (
     amplitude_loss,
-    envelope_loss,
+    event_weighted_recon_loss,
     fft_mag_mse,
-    isolated_peak_loss,
     kl_divergence_free_bits,
+    local_energy_recall_loss,
     multiscale_stft_loss,
     multi_scale_spectral_loss,
-    second_diff_loss,
     temporal_derivative_loss,
 )
 from .schedulers import cyclical_beta_schedule
@@ -60,16 +59,18 @@ class Trainer:
         self.w_amp = loss_cfg.get("amplitude_weight", 0.5)
         self.w_fft = loss_cfg.get("fft_weight", 0.0)
         self.w_delta = loss_cfg.get("delta_weight", 0.0)
-        self.w_second_diff = loss_cfg.get("second_diff_weight", 0.0)
-        self.w_peak = loss_cfg.get("isolated_peak_weight", 0.0)
-        self.w_env = loss_cfg.get("envelope_weight", 0.0)
+        self.w_event_recon = loss_cfg.get("event_recon_weight", 0.0)
+        self.w_local_energy = loss_cfg.get("local_energy_weight", 0.0)
         self.clamp_range = loss_cfg.get("clamp_range", 3.0)
         self.recon_time_weight = loss_cfg.get("recon_time_weight", 1.0)
         self.delta_use_l1 = bool(loss_cfg.get("delta_use_l1", True))
-        self.second_diff_use_l1 = bool(loss_cfg.get("second_diff_use_l1", True))
-        self.peak_kernel = int(loss_cfg.get("isolated_peak_kernel", 9))
-        self.envelope_kernel = int(loss_cfg.get("envelope_kernel", 81))
-        self.envelope_use_l1 = bool(loss_cfg.get("envelope_use_l1", True))
+        self.event_recon_kernel = int(loss_cfg.get("event_recon_kernel", 41))
+        self.event_recon_emphasis = float(loss_cfg.get("event_recon_emphasis", 2.0))
+        self.event_recon_floor = float(loss_cfg.get("event_recon_floor", 1.0))
+        self.event_recon_use_l1 = bool(loss_cfg.get("event_recon_use_l1", True))
+        self.local_energy_kernel = int(loss_cfg.get("local_energy_kernel", 65))
+        self.local_energy_under_weight = float(loss_cfg.get("local_energy_under_weight", 2.0))
+        self.local_energy_over_weight = float(loss_cfg.get("local_energy_over_weight", 0.25))
 
         self.use_multiscale_stft_loss = loss_cfg.get("use_multiscale_stft_loss", False)
         self.stft_scales = loss_cfg.get("stft_scales", [128, 256, 512, 1024])
@@ -166,33 +167,28 @@ class Trainer:
             )
             recon = recon + delta
 
-        second_diff = torch.zeros((), device=x.device)
-        if self.w_second_diff > 0:
-            second_diff = self.w_second_diff * second_diff_loss(
+        event_recon = torch.zeros((), device=x.device)
+        if self.w_event_recon > 0:
+            event_recon = self.w_event_recon * event_weighted_recon_loss(
                 x_hat,
                 x,
-                use_l1=self.second_diff_use_l1,
+                kernel_size=self.event_recon_kernel,
+                emphasis=self.event_recon_emphasis,
+                floor=self.event_recon_floor,
+                use_l1=self.event_recon_use_l1,
             )
-            recon = recon + second_diff
+            recon = recon + event_recon
 
-        peak = torch.zeros((), device=x.device)
-        if self.w_peak > 0:
-            peak = self.w_peak * isolated_peak_loss(
+        local_energy = torch.zeros((), device=x.device)
+        if self.w_local_energy > 0:
+            local_energy = self.w_local_energy * local_energy_recall_loss(
                 x_hat,
                 x,
-                kernel_size=self.peak_kernel,
+                kernel_size=self.local_energy_kernel,
+                under_weight=self.local_energy_under_weight,
+                over_weight=self.local_energy_over_weight,
             )
-            recon = recon + peak
-
-        envelope = torch.zeros((), device=x.device)
-        if self.w_env > 0:
-            envelope = self.w_env * envelope_loss(
-                x_hat,
-                x,
-                kernel_size=self.envelope_kernel,
-                use_l1=self.envelope_use_l1,
-            )
-            recon = recon + envelope
+            recon = recon + local_energy
 
         loss = recon
         beta = 0.0
@@ -217,9 +213,8 @@ class Trainer:
             "amplitude": float(amp.detach().item()),
             "fft": float(fft.detach().item()),
             "delta": float(delta.detach().item()),
-            "second_diff": float(second_diff.detach().item()),
-            "isolated_peak": float(peak.detach().item()),
-            "envelope": float(envelope.detach().item()),
+            "event_recon": float(event_recon.detach().item()),
+            "local_energy": float(local_energy.detach().item()),
             "kl": float(kl_value.detach().item()),
             "beta": float(beta),
         }

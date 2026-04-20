@@ -130,56 +130,62 @@ def temporal_derivative_loss(
     return torch.mean((dx_hat - dx) ** 2)
 
 
-def second_diff_loss(
+def _check_odd_kernel(name: str, kernel_size: int) -> None:
+    if kernel_size <= 0 or kernel_size % 2 == 0:
+        raise ValueError(f"{name} must be a positive odd integer")
+
+
+def _local_abs_envelope(x: torch.Tensor, kernel_size: int) -> torch.Tensor:
+    _check_odd_kernel("kernel_size", kernel_size)
+    return F.avg_pool1d(torch.abs(x), kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
+
+
+def event_weighted_recon_loss(
     x_hat: torch.Tensor,
     x: torch.Tensor,
+    kernel_size: int = 41,
+    emphasis: float = 2.0,
+    floor: float = 1.0,
     use_l1: bool = True,
+    eps: float = 1e-8,
 ) -> torch.Tensor:
-    """Penalize mismatch in second-order temporal differences."""
-    ddx = x[..., 2:] - 2 * x[..., 1:-1] + x[..., :-2]
-    ddx_hat = x_hat[..., 2:] - 2 * x_hat[..., 1:-1] + x_hat[..., :-2]
+    """Weight reconstruction errors higher around target events.
+
+    The target waveform defines the event mask, so quiet regions contribute
+    less while true bursts are harder for the model to ignore.
+    """
+    envelope = _local_abs_envelope(x, kernel_size=kernel_size)
+    peak = torch.amax(envelope, dim=-1, keepdim=True).clamp_min(eps)
+    weights = float(floor) + float(emphasis) * (envelope / peak)
+    weights = weights / torch.mean(weights, dim=-1, keepdim=True).clamp_min(eps)
 
     if use_l1:
-        return torch.mean(torch.abs(ddx_hat - ddx))
-    return torch.mean((ddx_hat - ddx) ** 2)
+        error = torch.abs(x_hat - x)
+    else:
+        error = (x_hat - x) ** 2
+    return torch.mean(weights * error)
 
 
-def isolated_peak_loss(
+def local_energy_recall_loss(
     x_hat: torch.Tensor,
     x: torch.Tensor,
-    kernel_size: int = 9,
+    kernel_size: int = 65,
+    under_weight: float = 2.0,
+    over_weight: float = 0.25,
+    eps: float = 1e-8,
 ) -> torch.Tensor:
-    """Penalize predicted local spikes that exceed target-local salience."""
-    if kernel_size % 2 == 0:
-        raise ValueError("isolated_peak kernel_size must be odd")
+    """Penalize missing local RMS energy more than overshooting it."""
+    _check_odd_kernel("local_energy_kernel", kernel_size)
+    x_energy = torch.sqrt(
+        F.avg_pool1d(x ** 2, kernel_size=kernel_size, stride=1, padding=kernel_size // 2) + eps
+    )
+    xh_energy = torch.sqrt(
+        F.avg_pool1d(x_hat ** 2, kernel_size=kernel_size, stride=1, padding=kernel_size // 2) + eps
+    )
 
-    abs_hat = torch.abs(x_hat)
-    abs_x = torch.abs(x)
-
-    local_hat = F.avg_pool1d(abs_hat, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
-    local_x = F.avg_pool1d(abs_x, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
-
-    excess_hat = torch.relu(abs_hat - local_hat)
-    excess_x = torch.relu(abs_x - local_x)
-    return torch.mean(torch.relu(excess_hat - excess_x))
-
-
-def envelope_loss(
-    x_hat: torch.Tensor,
-    x: torch.Tensor,
-    kernel_size: int = 81,
-    use_l1: bool = True,
-) -> torch.Tensor:
-    """Compare smoothed amplitude envelopes."""
-    if kernel_size % 2 == 0:
-        raise ValueError("envelope kernel_size must be odd")
-
-    env_hat = F.avg_pool1d(torch.abs(x_hat), kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
-    env_x = F.avg_pool1d(torch.abs(x), kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
-
-    if use_l1:
-        return torch.mean(torch.abs(env_hat - env_x))
-    return torch.mean((env_hat - env_x) ** 2)
+    missed = torch.relu(x_energy - xh_energy)
+    overshot = torch.relu(xh_energy - x_energy)
+    return float(under_weight) * torch.mean(missed) + float(over_weight) * torch.mean(overshot)
 
 
 def kl_divergence_free_bits(
