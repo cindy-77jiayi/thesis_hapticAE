@@ -18,10 +18,8 @@ from .builders import build_ema, build_optimizer, build_scheduler
 from .checkpointing import CheckpointManager, RunArtifacts, save_history_json
 from .losses import (
     amplitude_loss,
-    event_weighted_recon_loss,
     fft_mag_mse,
     kl_divergence_free_bits,
-    local_energy_recall_loss,
     multiscale_stft_loss,
     multi_scale_spectral_loss,
     temporal_derivative_loss,
@@ -43,7 +41,9 @@ class Trainer:
         self.device = device
         self.config = config
         self.artifacts = artifacts
-        self.is_vae = config.get("model_type", "vae") == "vae"
+        self.model_type = config.get("model_type", "vae")
+        self.is_vae = self.model_type == "vae"
+        self.is_vqvae = self.model_type == "vqvae"
 
         train_cfg = config.get("training", {})
         self.total_epochs = train_cfg.get("epochs", 100)
@@ -59,18 +59,10 @@ class Trainer:
         self.w_amp = loss_cfg.get("amplitude_weight", 0.5)
         self.w_fft = loss_cfg.get("fft_weight", 0.0)
         self.w_delta = loss_cfg.get("delta_weight", 0.0)
-        self.w_event_recon = loss_cfg.get("event_recon_weight", 0.0)
-        self.w_local_energy = loss_cfg.get("local_energy_weight", 0.0)
         self.clamp_range = loss_cfg.get("clamp_range", 3.0)
         self.recon_time_weight = loss_cfg.get("recon_time_weight", 1.0)
         self.delta_use_l1 = bool(loss_cfg.get("delta_use_l1", True))
-        self.event_recon_kernel = int(loss_cfg.get("event_recon_kernel", 41))
-        self.event_recon_emphasis = float(loss_cfg.get("event_recon_emphasis", 2.0))
-        self.event_recon_floor = float(loss_cfg.get("event_recon_floor", 1.0))
-        self.event_recon_use_l1 = bool(loss_cfg.get("event_recon_use_l1", True))
-        self.local_energy_kernel = int(loss_cfg.get("local_energy_kernel", 65))
-        self.local_energy_under_weight = float(loss_cfg.get("local_energy_under_weight", 2.0))
-        self.local_energy_over_weight = float(loss_cfg.get("local_energy_over_weight", 0.25))
+        self.w_vq = config.get("vq", {}).get("loss_weight", 1.0)
 
         self.use_multiscale_stft_loss = loss_cfg.get("use_multiscale_stft_loss", False)
         self.stft_scales = loss_cfg.get("stft_scales", [128, 256, 512, 1024])
@@ -113,12 +105,18 @@ class Trainer:
         deterministic_vae: bool = False,
     ) -> tuple[torch.Tensor, dict[str, float]]:
         """Forward pass + loss computation for both VAE and AE."""
+        vq_loss = torch.zeros((), device=x.device)
+        vq_perplexity = torch.zeros((), device=x.device)
         if self.is_vae:
             if deterministic_vae:
                 z, mu, logvar = self.model.encode(x)
                 x_hat_raw = self.model.decode(mu, target_len=x.shape[-1])
             else:
                 x_hat_raw, mu, logvar, z = self.model(x)
+        elif self.is_vqvae:
+            x_hat_raw, z, _codes, vq_loss_raw, vq_perplexity = self.model(x)
+            vq_loss = self.w_vq * vq_loss_raw
+            mu = logvar = None
         else:
             x_hat_raw, z = self.model(x)
             mu = logvar = None
@@ -167,29 +165,6 @@ class Trainer:
             )
             recon = recon + delta
 
-        event_recon = torch.zeros((), device=x.device)
-        if self.w_event_recon > 0:
-            event_recon = self.w_event_recon * event_weighted_recon_loss(
-                x_hat,
-                x,
-                kernel_size=self.event_recon_kernel,
-                emphasis=self.event_recon_emphasis,
-                floor=self.event_recon_floor,
-                use_l1=self.event_recon_use_l1,
-            )
-            recon = recon + event_recon
-
-        local_energy = torch.zeros((), device=x.device)
-        if self.w_local_energy > 0:
-            local_energy = self.w_local_energy * local_energy_recall_loss(
-                x_hat,
-                x,
-                kernel_size=self.local_energy_kernel,
-                under_weight=self.local_energy_under_weight,
-                over_weight=self.local_energy_over_weight,
-            )
-            recon = recon + local_energy
-
         loss = recon
         beta = 0.0
         kl_value = torch.zeros((), device=x.device)
@@ -203,6 +178,8 @@ class Trainer:
                 beta_max=self.beta_max,
             )
             loss = recon + beta * kl_value
+        elif self.is_vqvae:
+            loss = recon + vq_loss
 
         metrics = {
             "loss": float(loss.detach().item()),
@@ -213,8 +190,8 @@ class Trainer:
             "amplitude": float(amp.detach().item()),
             "fft": float(fft.detach().item()),
             "delta": float(delta.detach().item()),
-            "event_recon": float(event_recon.detach().item()),
-            "local_energy": float(local_energy.detach().item()),
+            "vq": float(vq_loss.detach().item()),
+            "vq_perplexity": float(vq_perplexity.detach().item()),
             "kl": float(kl_value.detach().item()),
             "beta": float(beta),
         }
@@ -280,6 +257,8 @@ class Trainer:
                     x_hat = self.model.decode(mu, target_len=batch.shape[-1])
                 else:
                     x_hat, _, _, _ = self.model(batch)
+            elif self.is_vqvae:
+                x_hat, _, _, _, _ = self.model(batch)
             else:
                 x_hat, _ = self.model(batch)
             x_hat = torch.clamp(x_hat, -self.clamp_range, self.clamp_range)
