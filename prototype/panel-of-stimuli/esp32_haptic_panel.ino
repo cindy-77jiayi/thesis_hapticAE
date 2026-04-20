@@ -34,7 +34,7 @@ const uint8_t STIMULUS_06[] = {0};
 
 // HAPTIC GEN
 const uint8_t STIMULUS_07[] = 
-{0
+{
 };
 const uint8_t STIMULUS_08[] = {0};
 const uint8_t STIMULUS_09[] = {0};
