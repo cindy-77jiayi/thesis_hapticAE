@@ -4,7 +4,7 @@ constexpr uint8_t DRV2605_ADDR = 0x5A;
 constexpr int SDA_PIN = 21;
 constexpr int SCL_PIN = 22;
 constexpr unsigned long SERIAL_BAUD_RATE = 115200;
-constexpr uint16_t DEFAULT_SAMPLE_INTERVAL_MS = 5;
+constexpr uint16_t DEFAULT_SAMPLE_INTERVAL_MS = 10;
 
 constexpr uint8_t REG_MODE = 0x01;
 constexpr uint8_t REG_RTP_INPUT = 0x02;
