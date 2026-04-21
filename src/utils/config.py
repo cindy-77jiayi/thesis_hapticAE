@@ -96,6 +96,11 @@ _DEFAULTS = {
         "delta_weight": 0.0,
         "delta_use_l1": True,
         "clamp_range": 3.0,
+        "event_envelope_weight": 0.0,
+        "event_local_rms_weight": 0.0,
+        "event_onset_weight": 0.0,
+        "event_windows": [32, 64, 128],
+        "event_eps": 1e-6,
     },
 
     "kl": {

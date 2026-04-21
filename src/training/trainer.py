@@ -18,6 +18,9 @@ from .builders import build_ema, build_optimizer, build_scheduler
 from .checkpointing import CheckpointManager, RunArtifacts, save_history_json
 from .losses import (
     amplitude_loss,
+    event_envelope_loss,
+    event_local_rms_loss,
+    event_onset_loss,
     fft_mag_mse,
     kl_divergence_free_bits,
     multiscale_stft_loss,
@@ -69,6 +72,20 @@ class Trainer:
         self.stft_linear_weight = loss_cfg.get("stft_linear_weight", 0.1)
         self.stft_log_weight = loss_cfg.get("stft_log_weight", 0.1)
         self.stft_eps = loss_cfg.get("stft_eps", 1e-7)
+        self.w_event_envelope = loss_cfg.get(
+            "event_envelope_weight",
+            loss_cfg.get("event_env_weight", 0.0),
+        )
+        self.w_event_local_rms = loss_cfg.get(
+            "event_local_rms_weight",
+            loss_cfg.get("local_rms_weight", 0.0),
+        )
+        self.w_event_onset = loss_cfg.get(
+            "event_onset_weight",
+            loss_cfg.get("onset_weight", 0.0),
+        )
+        self.event_windows = loss_cfg.get("event_windows", [32, 64, 128])
+        self.event_eps = loss_cfg.get("event_eps", 1e-6)
 
         kl_cfg = config.get("kl", {})
         self.free_bits = kl_cfg.get("free_bits", 0.1)
@@ -156,6 +173,36 @@ class Trainer:
             )
             recon = recon + delta
 
+        event_envelope = torch.zeros((), device=x.device)
+        if self.w_event_envelope > 0:
+            event_envelope = self.w_event_envelope * event_envelope_loss(
+                x_hat,
+                x,
+                windows=self.event_windows,
+                eps=self.event_eps,
+            )
+            recon = recon + event_envelope
+
+        event_local_rms = torch.zeros((), device=x.device)
+        if self.w_event_local_rms > 0:
+            event_local_rms = self.w_event_local_rms * event_local_rms_loss(
+                x_hat,
+                x,
+                windows=self.event_windows,
+                eps=self.event_eps,
+            )
+            recon = recon + event_local_rms
+
+        event_onset = torch.zeros((), device=x.device)
+        if self.w_event_onset > 0:
+            event_onset = self.w_event_onset * event_onset_loss(
+                x_hat,
+                x,
+                windows=self.event_windows,
+                eps=self.event_eps,
+            )
+            recon = recon + event_onset
+
         loss = recon
         beta = 0.0
         kl_value = torch.zeros((), device=x.device)
@@ -179,6 +226,9 @@ class Trainer:
             "amplitude": float(amp.detach().item()),
             "fft": float(fft.detach().item()),
             "delta": float(delta.detach().item()),
+            "event_envelope": float(event_envelope.detach().item()),
+            "event_local_rms": float(event_local_rms.detach().item()),
+            "event_onset": float(event_onset.detach().item()),
             "kl": float(kl_value.detach().item()),
             "beta": float(beta),
         }

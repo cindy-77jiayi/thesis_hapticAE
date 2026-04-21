@@ -1,7 +1,9 @@
 """Loss functions for haptic signal reconstruction."""
 
-import torch
 from collections.abc import Sequence
+
+import torch
+import torch.nn.functional as F
 
 
 def multi_scale_spectral_loss(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
@@ -113,6 +115,81 @@ def amplitude_loss(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     peak_diff = torch.mean((peak_x - peak_xh) ** 2)
 
     return rms_diff + peak_diff
+
+
+def _same_length_avg_pool1d(x: torch.Tensor, window_size: int) -> torch.Tensor:
+    if window_size <= 0:
+        raise ValueError("window_size must be a positive integer")
+
+    left = (window_size - 1) // 2
+    right = window_size // 2
+    padded = F.pad(x, (left, right), mode="replicate")
+    return F.avg_pool1d(padded, kernel_size=window_size, stride=1)
+
+
+def _as_window_list(windows: Sequence[int]) -> list[int]:
+    if len(windows) == 0:
+        raise ValueError("event windows must contain at least one window size")
+    return [int(window) for window in windows]
+
+
+def smooth_abs_envelope(
+    x: torch.Tensor,
+    window_size: int,
+    eps: float = 1e-6,
+) -> torch.Tensor:
+    """Smoothed absolute-value envelope with input length preserved."""
+    return _same_length_avg_pool1d(torch.abs(x), window_size).clamp_min(eps)
+
+
+def event_envelope_loss(
+    x_hat: torch.Tensor,
+    x: torch.Tensor,
+    windows: Sequence[int] = (32, 64, 128),
+    eps: float = 1e-6,
+) -> torch.Tensor:
+    """Compare log energy envelopes so events can match despite phase offsets."""
+    total = torch.zeros((), device=x.device, dtype=x.dtype)
+    window_list = _as_window_list(windows)
+    for window_size in window_list:
+        x_env = torch.log(smooth_abs_envelope(x, window_size, eps=eps))
+        xh_env = torch.log(smooth_abs_envelope(x_hat, window_size, eps=eps))
+        total = total + torch.mean(torch.abs(xh_env - x_env))
+    return total / len(window_list)
+
+
+def event_local_rms_loss(
+    x_hat: torch.Tensor,
+    x: torch.Tensor,
+    windows: Sequence[int] = (32, 64, 128),
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Compare multi-scale local RMS to preserve perceived event intensity."""
+    total = torch.zeros((), device=x.device, dtype=x.dtype)
+    window_list = _as_window_list(windows)
+    for window_size in window_list:
+        x_rms = torch.sqrt(_same_length_avg_pool1d(x ** 2, window_size) + eps)
+        xh_rms = torch.sqrt(_same_length_avg_pool1d(x_hat ** 2, window_size) + eps)
+        total = total + torch.mean(torch.abs(xh_rms - x_rms))
+    return total / len(window_list)
+
+
+def event_onset_loss(
+    x_hat: torch.Tensor,
+    x: torch.Tensor,
+    windows: Sequence[int] = (32, 64, 128),
+    eps: float = 1e-6,
+) -> torch.Tensor:
+    """Compare positive log-envelope slopes to align event onsets."""
+    total = torch.zeros((), device=x.device, dtype=x.dtype)
+    window_list = _as_window_list(windows)
+    for window_size in window_list:
+        x_env = torch.log(smooth_abs_envelope(x, window_size, eps=eps))
+        xh_env = torch.log(smooth_abs_envelope(x_hat, window_size, eps=eps))
+        x_onset = torch.relu(x_env[..., 1:] - x_env[..., :-1])
+        xh_onset = torch.relu(xh_env[..., 1:] - xh_env[..., :-1])
+        total = total + torch.mean(torch.abs(xh_onset - x_onset))
+    return total / len(window_list)
 
 
 def temporal_derivative_loss(
