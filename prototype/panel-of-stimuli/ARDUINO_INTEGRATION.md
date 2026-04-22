@@ -41,10 +41,42 @@ const uint8_t STIMULUS_01[] = {
 };
 ```
 
-The sketch replays each sample at `DEFAULT_SAMPLE_INTERVAL_MS`, which is currently set to `5 ms`.
+The sketch replays each sample at `DEFAULT_SAMPLE_INTERVAL_MS`, which is currently set to `20 ms`.
+It also caps each replay at `MAX_STIMULUS_DURATION_MS = 2000 ms`, matching the ERM preprocessing convention of 100 `uint8_t` samples for one 2-second stimulus.
 If your exported data was generated with a different interval, update that constant in:
 
 - [esp32_haptic_panel.ino](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\esp32_haptic_panel.ino)
+
+### ERM preprocessing
+
+Preprocess raw stimuli before pasting them into the sketch:
+
+1. Open [erm_preprocess_waveforms.py](C:\Users\11604\Desktop\thesis\scripts\erm_preprocess_waveforms.py).
+2. Paste raw sequence data into the `PASTED_STIMULI` block.
+3. Run:
+
+```powershell
+python scripts/erm_preprocess_waveforms.py
+```
+
+The script first converts 10 ms raw sequences into 20 ms ERM sequences with peak-hold pooling, then applies threshold/gamma/floor/min-pulse/attack-release processing offline and writes paste-ready ERM arrays to:
+
+- [erm_ready_stimuli.h](C:\Users\11604\Desktop\thesis\outputs\erm_ready_stimuli.h)
+
+Paste the generated `STIMULUS_*` arrays back into the stimuli section of:
+
+- [esp32_haptic_panel.ino](C:\Users\11604\Desktop\thesis\prototype\panel-of-stimuli\esp32_haptic_panel.ino)
+
+### ERM RTP playback
+
+The firmware assumes the arrays already contain ERM-ready unsigned amplitude values and sends each `uint8_t` value directly to the DRV2605L RTP register.
+
+Important playback assumptions:
+
+- DRV2605L is configured for ERM mode.
+- RTP input is unsigned: `0` means stop/no drive, `255` means maximum drive.
+- No LRA normalization, centered-waveform conversion, or perceptual preprocessing is applied during playback.
+- Playback timing remains simple: one RTP write every `20 ms`.
 
 ### Included sketch
 
@@ -56,7 +88,7 @@ The sketch includes:
 
 - ESP32 serial parsing for anonymous IDs
 - DRV2605L initialization on `SDA=21`, `SCL=22`, `0x5A`
-- ERM configuration
+- ERM configuration with RTP unsigned amplitude playback
 - RTP playback mode
 - 60 placeholder stimulus arrays
 - Safe stop after playback
