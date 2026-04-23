@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronRight,
@@ -279,6 +279,7 @@ export function StudyApp() {
   const [blockResultsByStimulusId, setBlockResultsByStimulusId] = useState<Record<number, FlowBlockResult>>({});
   const [overviewDrafts, setOverviewDrafts] = useState<Partial<Record<UIFlow, OverviewDraft>>>({});
   const [overviewResults, setOverviewResults] = useState<Partial<Record<UIFlow, FlowOverviewResult>>>({});
+  const playbackInFlightRef = useRef(false);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -310,6 +311,7 @@ export function StudyApp() {
     setCurrentFlowIndex(0);
     setSelectedStimulusId(null);
     setPlayToken(0);
+    playbackInFlightRef.current = false;
     setIsPlaybackRunning(false);
     setStudyMessage(null);
     setRatingsByStimulusId({});
@@ -346,6 +348,8 @@ export function StudyApp() {
     setCurrentFlowIndex(0);
     setSelectedStimulusId(null);
     setPlayToken(0);
+    playbackInFlightRef.current = false;
+    setIsPlaybackRunning(false);
     setRatingsByStimulusId({});
     setBlockResultsByStimulusId({});
     setOverviewDrafts({});
@@ -355,6 +359,12 @@ export function StudyApp() {
   }
 
   async function triggerStimulusPlayback(stimulus: FlowStimulusDefinition) {
+    if (playbackInFlightRef.current) {
+      setStudyMessage("Wait for the current UI flow and haptic playback to finish before replaying.");
+      return;
+    }
+
+    playbackInFlightRef.current = true;
     setSelectedStimulusId(stimulus.anonymousId);
     setPlayToken((value) => value + 1);
     setIsPlaybackRunning(true);
@@ -374,9 +384,10 @@ export function StudyApp() {
     setStudyMessage(`Triggered ${stimulus.displayLabel} for ${formatFlowShortLabel(stimulus.flow)}.`);
   }
 
-  function handlePlaybackComplete() {
+  const handlePlaybackComplete = useCallback(() => {
+    playbackInFlightRef.current = false;
     setIsPlaybackRunning(false);
-  }
+  }, []);
 
   function handleRatingSelect(key: LikertKey, value: number) {
     if (!currentStimulus) {
@@ -514,6 +525,8 @@ export function StudyApp() {
 
     setStudyMessage(null);
     setSelectedStimulusId(null);
+    playbackInFlightRef.current = false;
+    setIsPlaybackRunning(false);
 
     if (currentFlowIndex === FLOW_ORDER.length - 1) {
       setScreen("completion");
