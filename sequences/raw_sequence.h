@@ -1,4 +1,10 @@
 
+/*
+The raw sequence here for all VAE-related is outdated. 
+Check the latest in vae_sequence.h
+Ignore stimulus 4-6,13-15,19-21,28-30,34-36,43-45,49-51,58-60
+*/
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Success block: anonymous IDs 1-15
 // RANDOM NOISE
