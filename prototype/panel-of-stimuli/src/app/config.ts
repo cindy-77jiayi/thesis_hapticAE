@@ -32,8 +32,8 @@ export const OVERVIEW_CSV_HEADERS = [
 ] as const;
 
 export const GOOGLE_FORM_CONFIG = {
-  googleFormUrl: "",
-  participantPrefillEntry: "",
+  googleFormUrl: "https://forms.gle/6ZtSLwiKjy7WVybN9",
+  participantPrefillEntry: "entry.139581506",
 };
 
 export const LIKERT_QUESTIONS: LikertQuestion[] = [

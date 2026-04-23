@@ -58,6 +58,8 @@ const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
 };
 
 const ANONYMOUS_ID_TO_WAVEFORM_SLOT = buildAnonymousIdToWaveformSlot();
+const OVERVIEW_MIN_SELECTIONS = 1;
+const OVERVIEW_MAX_SELECTIONS = 3;
 
 function getStatusLabel(status: ReturnType<typeof useSerialConnection>["status"]): string {
   if (status === "connected") {
@@ -453,7 +455,7 @@ export function StudyApp() {
       const otherList = currentDraft[otherBucket];
 
       const isSelected = targetList.includes(anonymousId);
-      const maxCount = bucket === "top3Ids" ? 3 : 2;
+      const maxCount = OVERVIEW_MAX_SELECTIONS;
       let nextTarget = targetList;
 
       if (isSelected) {
@@ -500,13 +502,13 @@ export function StudyApp() {
 
     const draft = overviewDrafts[currentFlow] ?? createDefaultOverviewDraft();
 
-    if (draft.top3Ids.length !== 3) {
-      setStudyMessage("Select exactly three best-match anonymous IDs before continuing.");
+    if (draft.top3Ids.length < OVERVIEW_MIN_SELECTIONS || draft.top3Ids.length > OVERVIEW_MAX_SELECTIONS) {
+      setStudyMessage("Select one to three best-match anonymous IDs before continuing.");
       return;
     }
 
-    if (draft.bottomIds.length < 1 || draft.bottomIds.length > 2) {
-      setStudyMessage("Select one or two worst-match anonymous IDs before continuing.");
+    if (draft.bottomIds.length < OVERVIEW_MIN_SELECTIONS || draft.bottomIds.length > OVERVIEW_MAX_SELECTIONS) {
+      setStudyMessage("Select one to three worst-match anonymous IDs before continuing.");
       return;
     }
 
@@ -634,7 +636,7 @@ export function StudyApp() {
                       <li>4 UI flow blocks in a fixed order</li>
                       <li>15 anonymous vibration IDs per block</li>
                       <li>3 ratings per selected stimulus</li>
-                      <li>Per-flow Top 3 and Bottom 1-2 overview</li>
+                      <li>Per-flow best and worst overview, 1-3 choices each</li>
                     </ul>
                   </div>
                   <div className="rounded-[28px] border border-white bg-white p-5 shadow-sm">
@@ -963,7 +965,7 @@ export function StudyApp() {
                 {formatFlowShortLabel(currentFlow)} best and worst matches
               </h2>
               <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-                Pick exactly three anonymous IDs as the best match for this UI event, then pick one or two as the worst
+                Pick one to three anonymous IDs as the best match for this UI event, then pick one to three as the worst
                 match. These sets cannot overlap.
               </p>
             </div>
@@ -972,12 +974,14 @@ export function StudyApp() {
               <div className="rounded-[34px] border border-white/70 bg-white/85 p-6 shadow-[0_30px_120px_rgba(15,23,42,0.12)] backdrop-blur">
                 <div className="mb-5 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                    <p className="font-semibold text-slate-900">Top 3 selected</p>
-                    <p className="mt-2">{currentOverviewDraft.top3Ids.length}/3</p>
+                    <p className="font-semibold text-slate-900">Best selected</p>
+                    <p className="mt-2">{currentOverviewDraft.top3Ids.length}/{OVERVIEW_MAX_SELECTIONS}</p>
+                    <p className="mt-1 text-xs text-slate-500">At least {OVERVIEW_MIN_SELECTIONS}</p>
                   </div>
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                    <p className="font-semibold text-slate-900">Bottom selected</p>
-                    <p className="mt-2">{currentOverviewDraft.bottomIds.length}/2</p>
+                    <p className="font-semibold text-slate-900">Worst selected</p>
+                    <p className="mt-2">{currentOverviewDraft.bottomIds.length}/{OVERVIEW_MAX_SELECTIONS}</p>
+                    <p className="mt-1 text-xs text-slate-500">At least {OVERVIEW_MIN_SELECTIONS}</p>
                   </div>
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
                     <p className="font-semibold text-slate-900">Block completion</p>
@@ -1133,8 +1137,8 @@ export function StudyApp() {
                       <p className="text-sm font-semibold text-slate-900">{formatFlowShortLabel(flow)}</p>
                       {result ? (
                         <div className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
-                          <p>Top 3: {result.top3Ids.map((value) => `A${String(value).padStart(2, "0")}`).join(", ")}</p>
-                          <p>Bottom: {result.bottomIds.map((value) => `A${String(value).padStart(2, "0")}`).join(", ")}</p>
+                          <p>Best: {result.top3Ids.map((value) => `A${String(value).padStart(2, "0")}`).join(", ")}</p>
+                          <p>Worst: {result.bottomIds.map((value) => `A${String(value).padStart(2, "0")}`).join(", ")}</p>
                         </div>
                       ) : (
                         <p className="mt-3 text-sm leading-6 text-slate-500">No overview captured.</p>

@@ -14,8 +14,8 @@ This directory contains the local-first user-study prototype for the haptic thes
 - Sends anonymous IDs `1..60` to an ESP32 through Web Serial
 - Captures 3 Likert ratings per anonymous ID
 - Captures one overview per flow:
-  - Top 3 best match
-  - Bottom 1 or 2 worst match
+  - Best match selections, 1 to 3 anonymous IDs
+  - Worst match selections, 1 to 3 anonymous IDs
   - Optional open-text reasons
 - Exports two CSV files:
   - detailed block ratings
