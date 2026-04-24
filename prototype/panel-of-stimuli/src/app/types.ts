@@ -1,7 +1,6 @@
 export const UI_FLOW_VALUES = ["success", "error", "notification", "loading"] as const;
 export const LIKERT_KEYS = [
   "rating_match",
-  "rating_appropriate",
   "rating_meaningful",
 ] as const;
 
@@ -13,7 +12,6 @@ export type ExperimentScreen =
   | "connect"
   | "participant"
   | "flow-block"
-  | "flow-overview"
   | "completion";
 
 export interface FlowStimulusDefinition {
@@ -31,7 +29,6 @@ export interface FlowBlockResult {
   waveformSlot: number;
   gridPosition: number;
   rating_match: number;
-  rating_appropriate: number;
   rating_meaningful: number;
   timestamp: string;
 }

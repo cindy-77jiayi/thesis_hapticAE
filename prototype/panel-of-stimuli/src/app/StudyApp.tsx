@@ -199,7 +199,7 @@ function HeaderBar({
                 Rated vibrations {overallCompletedCount}/{TOTAL_ANON_STIMULI}
               </span>
               <span>
-                Flow overviews {overviewCompletedCount}/{FLOW_ORDER.length}
+                Block comparisons {overviewCompletedCount}/{FLOW_ORDER.length}
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-slate-100">
@@ -292,7 +292,7 @@ export function StudyApp() {
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  const currentFlow = screen === "flow-block" || screen === "flow-overview" ? FLOW_ORDER[currentFlowIndex] : null;
+  const currentFlow = screen === "flow-block" ? FLOW_ORDER[currentFlowIndex] : null;
   const currentStimuli = currentFlow && flowBlocks ? flowBlocks[currentFlow] : [];
   const currentStimulus =
     selectedStimulusId && currentStimuli ? currentStimuli.find((item) => item.anonymousId === selectedStimulusId) ?? null : null;
@@ -419,28 +419,10 @@ export function StudyApp() {
         waveformSlot: currentStimulus.waveformSlot,
         gridPosition: currentStimulus.gridPosition,
         rating_match: nextRatings.rating_match!,
-        rating_appropriate: nextRatings.rating_appropriate!,
         rating_meaningful: nextRatings.rating_meaningful!,
         timestamp: new Date().toISOString(),
       },
     }));
-  }
-
-  function handleContinueToOverview() {
-    if (currentFlowCompletedCount < STIMULI_PER_FLOW) {
-      setStudyMessage("All 15 anonymous vibrations in this block must be completed before the overview step.");
-      return;
-    }
-
-    if (currentFlow) {
-      setOverviewDrafts((previous) => ({
-        ...previous,
-        [currentFlow]: previous[currentFlow] ?? createDefaultOverviewDraft(),
-      }));
-    }
-
-    setStudyMessage(null);
-    setScreen("flow-overview");
   }
 
   function handleToggleOverviewSelection(bucket: "top3Ids" | "bottomIds", anonymousId: number) {
@@ -502,13 +484,18 @@ export function StudyApp() {
 
     const draft = overviewDrafts[currentFlow] ?? createDefaultOverviewDraft();
 
+    if (currentFlowCompletedCount < STIMULI_PER_FLOW) {
+      setStudyMessage("Complete all 15 anonymous vibration ratings before finishing this block.");
+      return;
+    }
+
     if (draft.top3Ids.length < OVERVIEW_MIN_SELECTIONS || draft.top3Ids.length > OVERVIEW_MAX_SELECTIONS) {
-      setStudyMessage("Select one to three best-match anonymous IDs before continuing.");
+      setStudyMessage("Select one to three best-match anonymous IDs before finishing this block.");
       return;
     }
 
     if (draft.bottomIds.length < OVERVIEW_MIN_SELECTIONS || draft.bottomIds.length > OVERVIEW_MAX_SELECTIONS) {
-      setStudyMessage("Select one to three worst-match anonymous IDs before continuing.");
+      setStudyMessage("Select one to three worst-match anonymous IDs before finishing this block.");
       return;
     }
 
@@ -547,7 +534,7 @@ export function StudyApp() {
   }
 
   function handleDownloadOverviewResults() {
-    const filename = `${participantId || "participant"}_panel_overview.csv`;
+    const filename = `${participantId || "participant"}_panel_comparison.csv`;
     const orderedResults = FLOW_ORDER.flatMap((flow) => (overviewResults[flow] ? [overviewResults[flow]!] : []));
     downloadTextFile(buildOverviewCsv(orderedResults), filename);
   }
@@ -635,8 +622,8 @@ export function StudyApp() {
                     <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
                       <li>4 UI flow blocks in a fixed order</li>
                       <li>15 anonymous vibration IDs per block</li>
-                      <li>3 ratings per selected stimulus</li>
-                      <li>Per-flow best and worst overview, 1-3 choices each</li>
+                      <li>2 ratings per selected stimulus</li>
+                      <li>Per-flow best and worst comparison, 1-3 choices each</li>
                     </ul>
                   </div>
                   <div className="rounded-[28px] border border-white bg-white p-5 shadow-sm">
@@ -789,7 +776,7 @@ export function StudyApp() {
                   <h2 className="mt-3 text-3xl font-bold text-slate-950">{formatFlowLabel(currentFlow)}</h2>
                   <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
                     The UI flow stays fixed in place. Select one anonymous vibration from the 3x5 panel, the flow demo will
-                    autoplay, and then rate that haptic on the three questions.
+                    autoplay, and then rate that haptic on the two questions.
                   </p>
                 </div>
                 <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
@@ -905,7 +892,7 @@ export function StudyApp() {
                               </p>
                               {experimenterMode ? (
                                 <div className={`mt-3 text-xs ${isSelected ? "text-slate-300" : "text-slate-400"}`}>
-                                  ID {stimulus.anonymousId} · Slot {stimulus.waveformSlot} · Pos {stimulus.gridPosition}
+                                  ID {stimulus.anonymousId} - Slot {stimulus.waveformSlot} - Pos {stimulus.gridPosition}
                                 </div>
                               ) : null}
                             </button>
@@ -914,17 +901,6 @@ export function StudyApp() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-end">
-                      <button
-                        type="button"
-                        onClick={handleContinueToOverview}
-                        disabled={currentFlowCompletedCount < STIMULI_PER_FLOW}
-                        className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                      >
-                        Continue to {formatFlowShortLabel(currentFlow)} overview
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
 
                   <div className="space-y-5">
@@ -950,128 +926,134 @@ export function StudyApp() {
                     </div>
                   </div>
                 </div>
+
               </div>
             </div>
-          </section>
-        ) : null}
 
-        {screen === "flow-overview" && currentFlow && currentStimuli ? (
-          <section className="space-y-6">
             <div className="rounded-[34px] border border-white/70 bg-white/85 p-6 shadow-[0_30px_120px_rgba(15,23,42,0.12)] backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Overview step {currentFlowIndex + 1} / {FLOW_ORDER.length}
-              </p>
-              <h2 className="mt-3 text-3xl font-bold text-slate-950">
-                {formatFlowShortLabel(currentFlow)} best and worst matches
-              </h2>
-              <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-                Pick one to three anonymous IDs as the best match for this UI event, then pick one to three as the worst
-                match. These sets cannot overlap.
-              </p>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-              <div className="rounded-[34px] border border-white/70 bg-white/85 p-6 shadow-[0_30px_120px_rgba(15,23,42,0.12)] backdrop-blur">
-                <div className="mb-5 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                    <p className="font-semibold text-slate-900">Best selected</p>
-                    <p className="mt-2">{currentOverviewDraft.top3Ids.length}/{OVERVIEW_MAX_SELECTIONS}</p>
-                    <p className="mt-1 text-xs text-slate-500">At least {OVERVIEW_MIN_SELECTIONS}</p>
-                  </div>
-                  <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                    <p className="font-semibold text-slate-900">Worst selected</p>
-                    <p className="mt-2">{currentOverviewDraft.bottomIds.length}/{OVERVIEW_MAX_SELECTIONS}</p>
-                    <p className="mt-1 text-xs text-slate-500">At least {OVERVIEW_MIN_SELECTIONS}</p>
-                  </div>
-                  <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                    <p className="font-semibold text-slate-900">Block completion</p>
-                    <p className="mt-2">{currentFlowCompletedCount}/15 rated</p>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {currentStimuli.map((stimulus) => {
-                    const inTop = currentOverviewDraft.top3Ids.includes(stimulus.anonymousId);
-                    const inBottom = currentOverviewDraft.bottomIds.includes(stimulus.anonymousId);
-
-                    return (
-                      <div key={stimulus.anonymousId} className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Anonymous</p>
-                            <p className="mt-2 text-2xl font-bold text-slate-950">{stimulus.displayLabel}</p>
-                          </div>
-                          <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">
-                            {stimulus.anonymousId}
-                          </div>
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleOverviewSelection("top3Ids", stimulus.anonymousId)}
-                            className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition ${
-                              inTop
-                                ? "bg-emerald-600 text-white"
-                                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                            }`}
-                          >
-                            {inTop ? "Best match" : "Mark best"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleOverviewSelection("bottomIds", stimulus.anonymousId)}
-                            className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition ${
-                              inBottom
-                                ? "bg-rose-600 text-white"
-                                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                            }`}
-                          >
-                            {inBottom ? "Worst match" : "Mark worst"}
-                          </button>
-                        </div>
-                        {experimenterMode ? (
-                          <p className="mt-3 text-xs text-slate-400">
-                            Slot {stimulus.waveformSlot} · Grid {stimulus.gridPosition}
-                          </p>
-                        ) : null}
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Global block comparison</p>
+                      <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                        These questions are for the whole set of 15 anonymous haptics in this UI flow, separate from the current-ID ratings.
+                      </p>
+                    </div>
+                    <div className="grid min-w-[360px] grid-cols-3 gap-3 text-sm text-slate-600">
+                      <div className="rounded-[22px] border border-white bg-white px-4 py-3">
+                        <p className="font-semibold text-slate-900">Best</p>
+                        <p className="mt-1">{currentOverviewDraft.top3Ids.length}/{OVERVIEW_MAX_SELECTIONS}</p>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                      <div className="rounded-[22px] border border-white bg-white px-4 py-3">
+                        <p className="font-semibold text-slate-900">Worst</p>
+                        <p className="mt-1">{currentOverviewDraft.bottomIds.length}/{OVERVIEW_MAX_SELECTIONS}</p>
+                      </div>
+                      <div className="rounded-[22px] border border-white bg-white px-4 py-3">
+                        <p className="font-semibold text-slate-900">Rated</p>
+                        <p className="mt-1">{currentFlowCompletedCount}/{STIMULI_PER_FLOW}</p>
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="space-y-5 rounded-[34px] border border-white/70 bg-white/85 p-6 shadow-[0_30px_120px_rgba(15,23,42,0.12)] backdrop-blur">
-                <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-5">
-                  <p className="text-sm font-semibold text-slate-900">Why did your best choices match?</p>
-                  <textarea
-                    value={currentOverviewDraft.topReason}
-                    onChange={(event) => handleOverviewTextChange("topReason", event.target.value)}
-                    rows={5}
-                    placeholder="Optional open response"
-                    className="mt-4 w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-slate-400"
-                  />
-                </div>
-                <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-5">
-                  <p className="text-sm font-semibold text-slate-900">Why did your worst choices not match?</p>
-                  <textarea
-                    value={currentOverviewDraft.bottomReason}
-                    onChange={(event) => handleOverviewTextChange("bottomReason", event.target.value)}
-                    rows={5}
-                    placeholder="Optional open response"
-                    className="mt-4 w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-slate-400"
-                  />
-                </div>
+                  <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-base font-semibold text-slate-950">
+                        Across the whole UI flow, which 1-3 anonymous haptics were the best overall matches?
+                      </p>
+                      <div className="mt-4 grid grid-cols-5 gap-2">
+                        {currentStimuli.map((stimulus) => {
+                          const isSelected = currentOverviewDraft.top3Ids.includes(stimulus.anonymousId);
+                          const isDisabled =
+                            !isSelected && currentOverviewDraft.top3Ids.length >= OVERVIEW_MAX_SELECTIONS;
 
-                <button
-                  type="button"
-                  onClick={handleSaveOverview}
-                  className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800"
-                >
-                  {currentFlowIndex === FLOW_ORDER.length - 1 ? "Finish study" : `Continue to ${formatFlowShortLabel(FLOW_ORDER[currentFlowIndex + 1])}`}
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+                          return (
+                            <button
+                              key={stimulus.anonymousId}
+                              type="button"
+                              disabled={isDisabled}
+                              onClick={() => handleToggleOverviewSelection("top3Ids", stimulus.anonymousId)}
+                              className={`rounded-2xl border px-2 py-3 text-sm font-semibold transition ${
+                                isSelected
+                                  ? "border-emerald-600 bg-emerald-600 text-white shadow-sm"
+                                  : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100"
+                              } ${isDisabled ? "cursor-not-allowed opacity-45" : ""}`}
+                            >
+                              {stimulus.displayLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-base font-semibold text-slate-950">
+                        Across the whole UI flow, which 1-3 anonymous haptics were the worst overall matches?
+                      </p>
+                      <div className="mt-4 grid grid-cols-5 gap-2">
+                        {currentStimuli.map((stimulus) => {
+                          const isSelected = currentOverviewDraft.bottomIds.includes(stimulus.anonymousId);
+                          const isDisabled =
+                            !isSelected && currentOverviewDraft.bottomIds.length >= OVERVIEW_MAX_SELECTIONS;
+
+                          return (
+                            <button
+                              key={stimulus.anonymousId}
+                              type="button"
+                              disabled={isDisabled}
+                              onClick={() => handleToggleOverviewSelection("bottomIds", stimulus.anonymousId)}
+                              className={`rounded-2xl border px-2 py-3 text-sm font-semibold transition ${
+                                isSelected
+                                  ? "border-rose-600 bg-rose-600 text-white shadow-sm"
+                                  : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100"
+                              } ${isDisabled ? "cursor-not-allowed opacity-45" : ""}`}
+                            >
+                              {stimulus.displayLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <label className="block rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                      <span className="text-base font-semibold text-slate-950">
+                        Why were the best choices stronger fits?
+                      </span>
+                      <textarea
+                        value={currentOverviewDraft.topReason}
+                        onChange={(event) => handleOverviewTextChange("topReason", event.target.value)}
+                        rows={5}
+                        placeholder="Optional open response"
+                        className="mt-4 w-full rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-slate-400"
+                      />
+                    </label>
+
+                    <label className="block rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                      <span className="text-base font-semibold text-slate-950">
+                        Why were the worst choices weaker fits?
+                      </span>
+                      <textarea
+                        value={currentOverviewDraft.bottomReason}
+                        onChange={(event) => handleOverviewTextChange("bottomReason", event.target.value)}
+                        rows={5}
+                        placeholder="Optional open response"
+                        className="mt-4 w-full rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-slate-400"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveOverview}
+                      disabled={currentFlowCompletedCount < STIMULI_PER_FLOW}
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {currentFlowIndex === FLOW_ORDER.length - 1
+                        ? "Finish study"
+                        : `Continue to ${formatFlowShortLabel(FLOW_ORDER[currentFlowIndex + 1])}`}
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
           </section>
         ) : null}
 
@@ -1083,8 +1065,8 @@ export function StudyApp() {
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Study complete</p>
                   <h2 className="mt-3 text-4xl font-bold text-slate-950">Session ready to export</h2>
                   <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                    All four flow blocks and overview selections are complete. Export the detailed ratings CSV and the
-                    overview CSV, then optionally open the follow-up Google Form.
+                    All four flow blocks and comparison responses are complete. Export the detailed ratings CSV and the
+                    comparison CSV, then optionally open the follow-up Google Form.
                   </p>
                 </div>
 
@@ -1114,7 +1096,7 @@ export function StudyApp() {
                     className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                   >
                     <Download className="h-4 w-4" />
-                    Export overview CSV
+                    Export comparison CSV
                   </button>
                   {googleFormsUrl ? (
                     <button
@@ -1141,7 +1123,7 @@ export function StudyApp() {
                           <p>Worst: {result.bottomIds.map((value) => `A${String(value).padStart(2, "0")}`).join(", ")}</p>
                         </div>
                       ) : (
-                        <p className="mt-3 text-sm leading-6 text-slate-500">No overview captured.</p>
+                        <p className="mt-3 text-sm leading-6 text-slate-500">No comparison captured.</p>
                       )}
                     </div>
                   );

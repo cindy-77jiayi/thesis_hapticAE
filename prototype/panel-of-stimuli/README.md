@@ -12,7 +12,7 @@ This directory contains the local-first user-study prototype for the haptic thes
 - Shows 15 anonymous vibration cards per flow in a `3 x 5` comparison grid
 - Keeps the UI flow viewport fixed in size and position
 - Sends anonymous IDs `1..60` to an ESP32 through Web Serial
-- Captures 3 Likert ratings per anonymous ID
+- Captures 2 Likert ratings per anonymous ID
 - Captures one overview per flow:
   - Best match selections, 1 to 3 anonymous IDs
   - Worst match selections, 1 to 3 anonymous IDs

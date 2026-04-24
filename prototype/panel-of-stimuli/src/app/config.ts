@@ -16,7 +16,6 @@ export const BLOCK_RESULTS_CSV_HEADERS = [
   "waveform_slot",
   "grid_position",
   "rating_match",
-  "rating_appropriate",
   "rating_meaningful",
   "timestamp",
 ] as const;
@@ -37,7 +36,6 @@ export const GOOGLE_FORM_CONFIG = {
 };
 
 export const LIKERT_QUESTIONS: LikertQuestion[] = [
-  { key: "rating_match", prompt: "This haptic matched the UI event." },
-  { key: "rating_appropriate", prompt: "This haptic felt appropriate for this interaction." },
+  { key: "rating_match", prompt: "This haptic fit the visual event." },
   { key: "rating_meaningful", prompt: "This haptic clearly conveyed a meaningful response." },
 ];

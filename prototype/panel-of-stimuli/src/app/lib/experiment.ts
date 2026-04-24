@@ -139,7 +139,6 @@ export function buildBlockResultsCsv(results: FlowBlockResult[]): string {
       waveform_slot: result.waveformSlot,
       grid_position: result.gridPosition,
       rating_match: result.rating_match,
-      rating_appropriate: result.rating_appropriate,
       rating_meaningful: result.rating_meaningful,
       timestamp: result.timestamp,
     };
