@@ -22,7 +22,6 @@ import {
 import { FlowRenderer } from "./components/FlowRenderer";
 import { useSerialConnection } from "./hooks/useSerialConnection";
 import {
-  buildAnonymousIdToWaveformSlot,
   buildBlockResultsCsv,
   buildGoogleFormUrl,
   buildOverviewCsv,
@@ -57,7 +56,6 @@ const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
   bottomReason: "",
 };
 
-const ANONYMOUS_ID_TO_WAVEFORM_SLOT = buildAnonymousIdToWaveformSlot();
 const OVERVIEW_MIN_SELECTIONS = 1;
 const OVERVIEW_MAX_SELECTIONS = 3;
 
@@ -275,7 +273,6 @@ export function StudyApp() {
   const [currentFlowIndex, setCurrentFlowIndex] = useState(0);
   const [selectedStimulusId, setSelectedStimulusId] = useState<number | null>(null);
   const [playToken, setPlayToken] = useState(0);
-  const [isPlaybackRunning, setIsPlaybackRunning] = useState(false);
   const [studyMessage, setStudyMessage] = useState<string | null>(null);
   const [ratingsByStimulusId, setRatingsByStimulusId] = useState<Record<number, FlowRatings>>({});
   const [blockResultsByStimulusId, setBlockResultsByStimulusId] = useState<Record<number, FlowBlockResult>>({});
@@ -314,7 +311,6 @@ export function StudyApp() {
     setSelectedStimulusId(null);
     setPlayToken(0);
     playbackInFlightRef.current = false;
-    setIsPlaybackRunning(false);
     setStudyMessage(null);
     setRatingsByStimulusId({});
     setBlockResultsByStimulusId({});
@@ -351,7 +347,6 @@ export function StudyApp() {
     setSelectedStimulusId(null);
     setPlayToken(0);
     playbackInFlightRef.current = false;
-    setIsPlaybackRunning(false);
     setRatingsByStimulusId({});
     setBlockResultsByStimulusId({});
     setOverviewDrafts({});
@@ -369,7 +364,6 @@ export function StudyApp() {
     playbackInFlightRef.current = true;
     setSelectedStimulusId(stimulus.anonymousId);
     setPlayToken((value) => value + 1);
-    setIsPlaybackRunning(true);
 
     if (serial.status !== "connected") {
       setStudyMessage("Device not connected. The UI demo is still shown, but no haptic is sent.");
@@ -388,7 +382,6 @@ export function StudyApp() {
 
   const handlePlaybackComplete = useCallback(() => {
     playbackInFlightRef.current = false;
-    setIsPlaybackRunning(false);
   }, []);
 
   function handleRatingSelect(key: LikertKey, value: number) {
@@ -515,7 +508,6 @@ export function StudyApp() {
     setStudyMessage(null);
     setSelectedStimulusId(null);
     playbackInFlightRef.current = false;
-    setIsPlaybackRunning(false);
 
     if (currentFlowIndex === FLOW_ORDER.length - 1) {
       setScreen("completion");
@@ -811,38 +803,6 @@ export function StudyApp() {
                       <FlowRenderer uiFlow={currentFlow} playToken={playToken} onPlaybackComplete={handlePlaybackComplete} />
                     </div>
                   </div>
-
-                  <div className="rounded-[32px] border border-slate-200 bg-slate-50/80 p-5">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-900">Current selection</p>
-                      {isPlaybackRunning ? (
-                        <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                          Playing
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {currentStimulus ? (
-                      <div className="mt-4 space-y-3 text-sm text-slate-600">
-                        <p>
-                          <span className="font-semibold text-slate-900">{currentStimulus.displayLabel}</span> is active for
-                          this block.
-                        </p>
-                        <p>Anonymous ID used for the serial trigger: {currentStimulus.anonymousId}</p>
-                        {experimenterMode ? (
-                          <div className="rounded-[22px] border border-white bg-white px-4 py-4 text-sm leading-6 text-slate-600">
-                            <p>Waveform slot: {currentStimulus.waveformSlot}</p>
-                            <p>Grid position: {currentStimulus.gridPosition}</p>
-                            <p>Lookup table slot: {ANONYMOUS_ID_TO_WAVEFORM_SLOT[currentStimulus.anonymousId - 1]}</p>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <p className="mt-4 text-sm leading-6 text-slate-600">
-                        Select one anonymous vibration card from the grid to start the autoplay demo.
-                      </p>
-                    )}
-                  </div>
                 </div>
 
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -861,38 +821,54 @@ export function StudyApp() {
                       <div className="grid grid-cols-3 gap-3">
                         {currentStimuli.map((stimulus) => {
                           const isSelected = stimulus.anonymousId === selectedStimulusId;
-                          const isComplete = Boolean(blockResultsByStimulusId[stimulus.anonymousId]);
+                          const savedResult = blockResultsByStimulusId[stimulus.anonymousId];
+                          const isComplete = Boolean(savedResult);
 
                           return (
                             <button
                               key={stimulus.anonymousId}
                               type="button"
                               onClick={() => void triggerStimulusPlayback(stimulus)}
-                              className={`rounded-[24px] border p-4 text-left transition ${
+                              className={`relative min-h-[112px] rounded-[24px] border p-4 text-left transition ${
                                 isSelected
                                   ? "border-slate-900 bg-slate-900 text-white shadow-lg"
                                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                               }`}
                             >
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isSelected ? "text-slate-300" : "text-slate-400"}`}>
-                                    Anonymous
-                                  </p>
-                                  <p className="mt-2 text-2xl font-bold">{stimulus.displayLabel}</p>
-                                </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-2xl font-bold">{stimulus.displayLabel}</p>
                                 {isComplete ? (
-                                  <span className={`rounded-full p-1 ${isSelected ? "bg-white/15" : "bg-emerald-100 text-emerald-700"}`}>
-                                    <Check className="h-4 w-4" />
-                                  </span>
+                                  <div
+                                    className={`absolute right-4 top-4 flex items-center text-sm font-semibold ${
+                                      isSelected ? "text-slate-100" : "text-slate-700"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`rounded-full p-1 ${
+                                        isSelected ? "bg-white/15" : "bg-emerald-100 text-emerald-700"
+                                      }`}
+                                    >
+                                      <Check className="h-4 w-4" />
+                                    </span>
+                                  </div>
                                 ) : null}
                               </div>
-                              <p className={`mt-3 text-sm leading-6 ${isSelected ? "text-slate-200" : "text-slate-500"}`}>
-                                {isComplete ? "Rated and saved" : "Select to autoplay and rate"}
-                              </p>
-                              {experimenterMode ? (
-                                <div className={`mt-3 text-xs ${isSelected ? "text-slate-300" : "text-slate-400"}`}>
-                                  ID {stimulus.anonymousId} - Slot {stimulus.waveformSlot} - Pos {stimulus.gridPosition}
+                              {isComplete ? (
+                                <div className="mt-5 grid grid-cols-2 gap-2">
+                                  <span
+                                    className={`rounded-2xl px-3 py-2 text-center text-xs font-semibold ${
+                                      isSelected ? "bg-white/10 text-slate-100" : "bg-slate-100 text-slate-700"
+                                    }`}
+                                  >
+                                    {savedResult!.rating_meaningful}
+                                  </span>
+                                  <span
+                                    className={`rounded-2xl px-3 py-2 text-center text-xs font-semibold ${
+                                      isSelected ? "bg-white/10 text-slate-100" : "bg-slate-100 text-slate-700"
+                                    }`}
+                                  >
+                                    {savedResult!.rating_match}
+                                  </span>
                                 </div>
                               ) : null}
                             </button>

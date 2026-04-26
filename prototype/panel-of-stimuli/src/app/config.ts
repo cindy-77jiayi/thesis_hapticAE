@@ -36,6 +36,6 @@ export const GOOGLE_FORM_CONFIG = {
 };
 
 export const LIKERT_QUESTIONS: LikertQuestion[] = [
-  { key: "rating_match", prompt: "This haptic fit the visual event." },
   { key: "rating_meaningful", prompt: "This haptic clearly conveyed a meaningful response." },
+  { key: "rating_match", prompt: "This haptic fit the visual event." },
 ];
