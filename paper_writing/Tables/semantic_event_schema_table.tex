@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{Semantic haptic event schema.}
+\label{tab:semantic-event-schema}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.45in}>{\raggedright\arraybackslash}p{4.35in}@{}}
+\hline
+\textbf{Field} & \textbf{Meaning} \\
+\hline
+\texttt{event\_type} & Visual interaction or state-change type. \\
+\texttt{semantic\_role} & Communicative haptic role, such as press, drag, release, confirmation, notification, warning, state change, or subtle context. \\
+\texttt{behavior\_class} & Behavior atlas category used to route the event to a latent search region. \\
+\texttt{style} & Qualitative haptic style, such as soft, sharp, strong, smooth, ticked, bumpy, rising, falling, sustained, or subtle. \\
+\texttt{strength} & Intended intensity on a continuous scale from 0.0 to 1.0. \\
+\texttt{timing\_hint} & Coarse temporal placement: beginning, middle, or end. \\
+\texttt{duration\_hint} & Coarse duration: short, medium, long, or full. \\
+\texttt{prototype\_index} & Curated atlas anchor hint used by latent search. \\
+\texttt{reason} & Short planner rationale for the event. \\
+\hline
+\end{tabular}
+\end{table}

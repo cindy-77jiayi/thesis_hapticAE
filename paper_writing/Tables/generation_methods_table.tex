@@ -1,0 +1,19 @@
+\begin{table}[t]
+\centering
+\caption{Compared generation methods.}
+\label{tab:generation-methods}
+\small
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.05in}>{\raggedright\arraybackslash}p{1.6in}>{\centering\arraybackslash}p{0.6in}>{\centering\arraybackslash}p{0.9in}>{\raggedright\arraybackslash}p{1.3in}@{}}
+\hline
+\textbf{Method} & \textbf{Input / control signal} & \textbf{Uses VAE?} & \textbf{Uses visual event semantics?} & \textbf{Purpose in comparison} \\
+\hline
+Random Noise & Random 2 s sequence & $\times$ & $\times$ & Unstructured random baseline \\
+Random-Plan VAE & OpenAI-generated random event plan & \checkmark & $\times$ & Structured but UI-agnostic VAE baseline \\
+HapticGen & OpenAI-generated text prompt from UI images & $\times$ & \checkmark & Prompt-based generative haptic baseline \\
+Direct LLM Pattern & OpenAI-authored 10 ms sequence from UI images & $\times$ & \checkmark & Direct actuator-sequence baseline \\
+Semantic VAE & OpenAI-generated semantic event plan from UI images & \checkmark & \checkmark & Proposed UI-grounded semantic VAE method \\
+\hline
+\end{tabular}
+\end{table}

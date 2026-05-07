@@ -1,0 +1,104 @@
+\documentclass{dcthesis}
+\pdfminorversion=7
+
+% Dartmouth thesis template exported from Overleaf and locally adapted only
+% for numbered chapter/section headings in dcthesis.cls.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Defaults
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\committee[F. Jon Kull, Ph.D.]{}{}{}{}
+\School{Guarini School of Graduate and Advanced Studies}{Dartmouth College}{Hanover, New Hampshire}
+\degree{Master of Science}
+\field{Computer Science}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Additional Packages
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Formatting
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\renewcommand{\labelenumi}{(\alph{enumi})}
+\renewcommand{\labelenumii}{(\roman{enumii})}
+\renewcommand{\chaptermark}[1]{\markboth{{\sc #1}}{{\sc #1}}}
+\renewcommand{\sectionmark}[1]{\markright{{\sc \thesection\ #1}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Theorem Declarations
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newtheorem{prop}{Proposition}[chapter]
+\newtheorem{theorem}[prop]{Theorem}
+\newtheorem{lemma}[prop]{Lemma}
+\newtheorem{corr}[prop]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[prop]{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}[prop]{Remark}
+\newtheorem{example}[prop]{Example}
+\newtheorem*{claim}{Claim}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Title Page Information
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{From Visual Events to Vibrotactile Feedback: A Semantic VAE Pipeline for Temporal Haptic Generation}
+\author{Jiayi Liu}
+\date{June 2026}
+\field{Computer Science}
+\degree{Master of Science}
+\committee{Nikhil Singh}{Lorie Loeb}{John P. Bell}{}
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Front Matter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\frontmatter
+
+\newgeometry{left=1.5in,top=1in,bottom=1in,right=1in}
+\maketitle
+\restoregeometry
+
+\chapter*{Abstract}
+\addcontentsline{toc}{section}{Abstract}
+[TODO: write the abstract after the main thesis argument and results are finalized.]
+
+\chapter*{Preface}
+\addcontentsline{toc}{section}{Preface}
+[TODO: write acknowledgments and preface text.]
+
+\tableofcontents
+
+% \listoftables
+% \listoffigures
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Main Matter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\mainmatter
+
+\input{Chapters/chapter1}
+\input{Chapters/chapter2}
+\input{Chapters/chapter3}
+\input{Chapters/chapter4}
+\input{Chapters/chapter5}
+\input{Chapters/chapter6}
+
+\appendix
+\input{Appendices/appendixA}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Back Matter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\backmatter
+
+\bibliographystyle{amsplain}
+\addcontentsline{toc}{chapter}{References}
+\bibliography{Bibliography/references}
+\markboth{{\rmfamily\scshape Bibliography}}{}
+
+\end{document}

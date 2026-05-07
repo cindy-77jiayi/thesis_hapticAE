@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\caption{Summary of the VAE configuration.}
+\label{tab:vae-config}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9in}>{\raggedright\arraybackslash}p{3.9in}@{}}
+\hline
+\textbf{Item} & \textbf{Configuration} \\
+\hline
+Dataset & 793 HapticGen WAV files \\
+Split & 634 training files and 159 validation files \\
+Segment & 0.5 s at 8 kHz; 4000 samples per chunk \\
+Preprocessing & Energy-rich segment sampling; global RMS normalization; clipping to $[-5,5]$ \\
+Model & One-dimensional convolutional VAE \\
+Latent space & 12 dimensions \\
+Training & 600 epochs; batch size 16 \\
+Loss components & Time-domain reconstruction, multi-scale STFT, amplitude, temporal derivative, event envelope, local RMS, onset, and KL regularization \\
+\hline
+\end{tabular}
+\end{table}

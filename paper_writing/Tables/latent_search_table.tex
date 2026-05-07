@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\caption{Latent search stages.}
+\label{tab:latent-search}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.65in}>{\raggedright\arraybackslash}p{4.15in}@{}}
+\hline
+\textbf{Stage} & \textbf{Operation} \\
+\hline
+Target construction & Convert semantic event fields into target waveform features. \\
+Anchor selection & Select four nearest curated atlas prototypes within the requested behavior class. \\
+Anchor weighting & Weight anchors by inverse feature distance. \\
+Initial latent estimate & Compute a weighted average of anchor latent vectors. \\
+Candidate sampling & Sample 32 latent candidates near the initial estimate using strength-scaled noise. \\
+Candidate decoding & Decode each candidate with the VAE decoder. \\
+Feature scoring & Compare decoded waveform features with the semantic target features. \\
+Latent selection & Select the best-scoring candidate as \texttt{generated\_raw\_z}. \\
+\hline
+\end{tabular}
+\end{table}

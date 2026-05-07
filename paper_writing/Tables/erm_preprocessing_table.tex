@@ -1,0 +1,26 @@
+\begin{table}[t]
+\centering
+\caption{ERM preprocessing parameters.}
+\label{tab:erm-preprocessing}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9in}>{\raggedright\arraybackslash}p{3.9in}@{}}
+\hline
+\textbf{Parameter} & \textbf{Value or role} \\
+\hline
+Input duration & 2.0 s \\
+Input interval & 10 ms \\
+Input length & 200 values \\
+Output interval & 20 ms \\
+Output length & 100 values \\
+Resampling & Peak-hold max pooling \\
+Threshold & 20 \\
+Gamma & 0.65 \\
+Minimum nonzero drive & 35 \\
+Maximum drive & 220 \\
+Minimum pulse length & 3 output frames \\
+Attack smoothing & 1 output frame \\
+Release smoothing & 2 output frames \\
+Shared preprocessing & Applied to all five user-study methods \\
+\hline
+\end{tabular}
+\end{table}

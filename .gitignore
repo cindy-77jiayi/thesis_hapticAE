@@ -14,6 +14,7 @@ experiments/
 *.pt
 *.pth
 *.ckpt
+paper_writing/Analysis/qualitative_outputs/
 
 # Jupyter
 .ipynb_checkpoints/

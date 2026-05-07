@@ -1,0 +1,22 @@
+\chapter{Introduction}
+
+Vibrotactile feedback can communicate system state, interaction progress, and event salience through short physical sensations. A vibration can confirm success, warn of an error, indicate that a process is ongoing, or draw attention to a notification. Yet designing such feedback remains difficult because haptic meaning depends on temporal structure as much as intensity: onset, duration, rhythm, decay, and repetition all shape how a vibration is perceived.
+
+This challenge is especially clear for temporal visual events. A state transition, loading animation, error cue, or notification arrival is not merely a static visual label; it is an ordered change. A haptic response should therefore fit both the meaning and timing of the event. Recent text-to-vibration systems such as HapticGen show that generative models can support haptic design from natural language prompts~\cite{sung2025hapticgen}. However, prompt-based generation and temporal visual feedback address different needs. A prompt may describe a desired tactile style, but temporal visual events require event-level structure: which moment matters, how the event unfolds, and how tactile feedback should align with that unfolding.
+
+This thesis studies temporal visual haptic generation through UI flows, a common and experimentally controllable class of events in human-computer interaction. The system input is a short sequence of visual states, such as before, during, and after frames for Payment Confirmation, Failed Submission, Notification Received, or Pull to Refresh. These UI flows provide a concrete setting for investigating the broader problem of translating visual event meaning into deployable vibrotactile feedback. The approach is not limited to UI feedback: the event planner is the main domain-specific component, and its schema and prompt can be adapted to other classes of temporal visual events.
+
+This thesis presents Semantic VAE, a semantic pipeline for generating vibrotactile feedback from temporal visual events. The system first represents a visual transition as one or more semantic haptic events. These event descriptions guide generation through a behavior atlas over the latent space of a convolutional variational autoencoder (VAE). The atlas organizes learned haptic waveforms into interpretable behavior families and supports latent search, while an event timeline mixer composes generated haptic chunks into a coherent two-second response. A shared preprocessing stage then exports the result as an ERM-ready playback sequence.
+
+The central idea is to avoid treating haptic generation as a direct jump from a text prompt or visual description to a low-level actuator sequence. Instead, Semantic VAE separates visual-event interpretation, semantic haptic planning, waveform generation, temporal composition, and hardware-oriented export. This structure makes the generation process more stable and inspectable: the system exposes what haptic events were inferred, how they were placed in time, and how they were translated into playable vibration sequences.
+
+I evaluate Semantic VAE in a 27-participant user study using four controlled UI feedback scenarios and five generation strategies: Random Noise, Random VAE, HapticGen, Direct LLM Pattern, and Semantic VAE. The results show that Semantic VAE provides a stable and competitive generation strategy. It produces fewer clearly mismatched stimuli than weaker baselines and is selected as the worst stimulus least often, while remaining competitive with stronger generative alternatives. The results also show that haptic preference is context-dependent: different visual events favor different balances of salience, rhythm, smoothness, and progress-like feedback.
+
+This thesis makes four contributions:
+
+\begin{enumerate}
+    \item A semantic event representation for translating temporal visual events into haptic design decisions.
+    \item A behavior-atlas-guided Semantic VAE pipeline for generating haptic feedback through latent search and event timeline composition.
+    \item A deployable prototype that converts generated haptic responses into ERM-ready playback sequences for user study evaluation.
+    \item Empirical evidence from a 27-participant user study showing that Semantic VAE is stable and competitive while revealing context-dependent haptic preferences.
+\end{enumerate}

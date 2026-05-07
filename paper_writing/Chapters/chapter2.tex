@@ -1,0 +1,37 @@
+\chapter{Related Work}
+
+\section{Vibrotactile Feedback and Haptic Meaning}
+
+Vibrotactile feedback is commonly used in interactive systems, but its relevance to this thesis comes from its temporal form. A vibration is not perceived as a static value; it unfolds through onset, duration, rhythm, repetition, and changes in intensity. These temporal properties shape whether a cue feels like confirmation, interruption, progress, or alert.
+
+Early work on tactons established that brief tactile patterns can serve as structured signals rather than simple on-off alerts. Brewster and Brown define tactons as tactile messages built from parameters such as frequency, amplitude, duration, rhythm, and location~\cite{brewster2004tactons}. For this thesis, the important implication is that haptic meaning depends on organized temporal structure. When the source event is itself temporal, as in a visual state transition, the generated vibration should preserve event-level timing rather than only matching a general tactile style.
+
+\section{Haptic Authoring and Generative Haptics}
+
+Authoring vibrotactile feedback often requires designers to work with temporal patterns, waveform properties, or actuator-level parameters. This can be manageable for a small set of fixed cues, but it becomes difficult to scale when an interface requires many event-specific responses. Temporal visual events add another layer of complexity because the haptic response must reflect not only a general style, but also event meaning, timing, intensity change, and duration.
+
+Recent generative haptic systems aim to reduce this authoring burden. HapticGen generates vibrotactile signals from natural language prompts and frames text as an interface for haptic ideation~\cite{sung2025hapticgen}. ChatHAP extends this direction through a conversational haptic design system that uses a large language model to generate vibrations from signal parameters, navigate libraries, and modify existing vibrations~\cite{lim2025chathap}. Other recent work has explored generative AI for affective vibration, including VAE- and LLM-based models for producing vibrations associated with emotion dimensions such as valence and arousal~\cite{li2025affectivevibration}.
+
+Together, these systems show that generative AI can support vibration authoring, but they also clarify the distinction addressed in this thesis. Existing GenAI haptic systems primarily condition generation on text, conversation, parameters, or affective labels. Temporal visual event feedback requires a representation of event structure before waveform generation: what happened, when it happened, and how tactile feedback should align with the event timeline. Semantic VAE therefore uses a semantic haptic event layer to bridge visual event meaning, haptic generation, and temporal composition.
+
+\section{From Text Prompts to Temporal Visual Events}
+
+Text, conversation, parameters, and affective labels are useful conditioning inputs for haptic generation because they allow users to describe a desired tactile style or communicative intent. However, temporal visual events introduce a different conditioning problem. A visual transition is not only a label such as success, error, or notification; it contains stages, ordering, and moments of emphasis. Compressing such an event into a single prompt risks losing the structure that determines when and how a haptic cue should occur.
+
+Recent work has begun to connect visual or scene context to haptic generation. Scene2Hap uses multimodal large language models to infer object semantics, physical context, material properties, and vibration behavior in VR scenes, then generates scene-wide vibrotactile feedback from those estimates~\cite{jingu2026scene2hap}. This demonstrates the value of visual context for automatic haptic authoring, but it focuses on object-level scene haptics and physical context rather than short temporal visual transitions.
+
+The importance of event structure is also reflected in recent video understanding work. Pang et al. propose a semantic-oriented approach to video temporal localization that represents videos through event and transition structure rather than relying only on boundary timestamps~\cite{pang2026measure}. For this thesis, the relevant implication is that temporal visual inputs often require an intermediate event representation. The problem addressed here is therefore not simply prompt-to-vibration generation, but event-conditioned haptic generation where semantic and temporal structure must be preserved before waveform synthesis.
+
+\section{Semantic Intermediate Representations and Controllable Generation}
+
+Complex generation tasks often benefit from separating high-level semantic decisions from low-level synthesis. Instead of mapping an input description directly to a final artifact, a system can first construct an intermediate representation that captures structure, intent, or constraints. This representation can make generation more inspectable and controllable because users or downstream modules can reason about the intermediate structure before final synthesis.
+
+Text-to-image generation provides a useful analogy. Hong et al. infer a semantic layout from text before synthesizing an image, using the layout as an intermediate representation between language and pixels~\cite{hong2018semanticlayout}. The layout is not the final output, but it exposes spatial and semantic decisions that can guide generation and support user control. The same principle is relevant beyond images: when the target output is a complex signal, an intermediate representation can connect high-level intent to low-level generation.
+
+This thesis applies that idea to vibrotactile feedback for temporal visual events. A direct mapping from a visual prompt to a waveform can hide important decisions about what event occurred, what haptic role it should serve, when the cue should occur, and how it should unfold over time. A semantic haptic event representation makes these decisions explicit before waveform synthesis. It therefore serves as a controllable bridge between visual event semantics and haptic signal generation.
+
+\section{Summary of Gap}
+
+Prior work establishes that vibrotactile meaning depends on temporal structure, that haptic authoring can benefit from generative tools, and that structured intermediate representations can improve controllability in complex generation tasks. Recent systems also show growing interest in connecting language, affective labels, or visual context to haptic output. These directions provide important foundations for this thesis.
+
+However, they do not fully address the problem of generating deployable vibrotactile feedback for short temporal visual events. Existing GenAI haptic systems primarily condition generation on text, conversation, parameters, or affective labels. Visual-to-haptic work has begun to use scene context, but it does not directly address event-level timing in short visual transitions. This thesis therefore focuses on a semantic event representation and generation pipeline that preserve temporal visual structure before waveform synthesis and hardware playback. Chapter 3 describes this Semantic VAE system in detail.
