@@ -20,6 +20,18 @@
 \usepackage{graphicx}
 \usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
 
+\makeatletter
+\newenvironment{appendixtable}{%
+  \par\addvspace{\intextsep}%
+  \noindent\begin{minipage}{\textwidth}%
+  \centering
+  \def\@captype{table}%
+}{%
+  \end{minipage}%
+  \par\addvspace{\intextsep}%
+}
+\makeatother
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Formatting
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -64,17 +76,39 @@
 \restoregeometry
 
 \chapter*{Abstract}
+\phantomsection
 \addcontentsline{toc}{section}{Abstract}
-[TODO: write the abstract after the main thesis argument and results are finalized.]
+Vibrotactile feedback can communicate system state, interaction progress, and event salience through short physical sensations.
+For temporal visual events, however, effective feedback must match not only event meaning but also timing, rhythm, duration, intensity, and repetition.
+This thesis addresses that problem through UI flows, a common and controllable class of temporal visual events in human-computer interaction.
+
+The proposed semantic VAE pipeline represents each visual transition as one or more semantic haptic events, described by behavior class, communicative role, style, strength, timing, and duration.
+These events guide a curated behavior atlas and a convolutional variational autoencoder: the atlas identifies interpretable regions of the learned haptic latent space, feature-guided search generates waveform chunks, an event timeline mixer composes those chunks into a two-second response, and the export stage converts the result into an ERM-ready playback sequence.
+The pipeline therefore connects visual interpretation, haptic intent, generative waveform synthesis, temporal composition, and physical playback.
+
+A user study with 27 participants compared Semantic VAE with Random Noise, Random-Plan VAE, HapticGen, and Direct LLM Pattern baselines across four UI flows: Payment Confirmation, Failed Submission, Notification Received, and Pull to Refresh.
+Semantic VAE produced meaningful and competitive haptic feedback, improved perceived meaningfulness over weaker baselines, and was selected as the worst match least often.
+Random-Plan VAE achieved the highest overall ratings, showing that the VAE-atlas backend can generate strong haptic candidates by exploring a broader structured design space.
+Qualitative explanations and follow-up survey responses further showed that participants judged haptics through timing, rhythm, semantic fit, salience, and appropriateness, not intensity alone.
+
+Together, these results show that visual-to-haptic generation is a structured, preference-shaped design problem: semantic event planning reduces failure risk, while atlas-guided generative exploration expands the space of preferred haptic candidates.
+Future haptic systems should therefore combine interpretable semantic constraints with candidate generation, comparison, and preference-aware adaptation.
 
 \chapter*{Preface}
+\phantomsection
 \addcontentsline{toc}{section}{Preface}
-[TODO: write acknowledgments and preface text.]
+This thesis was comppleted as part of the requriements for my Master of Science in Computer Science with a concentration in Digital Arts at Dartmouth College. It grew from my interest in multisensory experience and in the physical spaces where human-computer interaction increasingly takes place. At a time when large language models and artificial intelligence systems have become powerful and widespread, I have been struck by their abstract but effective influence. They made me think more carefully about language, human thought, and sensory cognition: all are imprecise, contextual, and difficult to formalize, yet deeply effective in how they communicate meaning and create empathy.
+
+I have long believed that human-computer interaction will continue to extend into physical space and time. Screens and visual interfaces have shaped much of our interaction with digital information, but they also constrain what interaction can become. This project began as a study of how visual events might be translated into haptic feedback, but it became more generative than I expected. It reminded me that information does not move in only one direction. Much of haptic feedback design asks how a known message can be expressed through touch. During this research, however, participants and I often found ourselves asking the reverse question: what scene, intention, or event does this vibration seem to imply? Like words with multiple meanings, haptic signals depend on context.
+
+This realization made the project feel larger than its prototype. We are accustomed to visually dominated devices, and it is not always obvious what other sensory feedback we need, why we need it, or when it should appear. Human perception has far more potential than current interfaces usually acknowledge. Our senses constantly provide important information without demanding full attention, yet visually centered design often leaves those forms of understanding unexplored. I hope future systems can learn to understand touch with the richness that we now bring to text and images, perhaps even building something like a dictionary of haptic meaning that helps people call on their senses in more intentional ways.
+
+I am grateful to my advisor and committee for their guidance throughout this work. I also thank Lejie Liu for his support and inspiration along the development process, and the user study participants for their time, attention, and valuable insights.
 
 \tableofcontents
 
-% \listoftables
-% \listoffigures
+\listoftables
+\listoffigures
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Main Matter
@@ -90,6 +124,8 @@
 
 \appendix
 \input{Appendices/appendixA}
+\input{Appendices/appendixB}
+\input{Appendices/appendixC}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Back Matter
@@ -97,6 +133,7 @@
 \backmatter
 
 \bibliographystyle{amsplain}
+\phantomsection
 \addcontentsline{toc}{chapter}{References}
 \bibliography{Bibliography/references}
 \markboth{{\rmfamily\scshape Bibliography}}{}

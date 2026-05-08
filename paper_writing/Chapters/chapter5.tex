@@ -1,3 +1,114 @@
 \chapter{Results}
 
-[TODO: draft this chapter after confirming the statistical analysis plan for the four user study CSV files.]
+\section{Data Preparation and Analysis Unit}
+
+The study analysis combines four exported data sources. The per-stimulus rating data contains 1,620 rows, corresponding to 27 participants, four UI flows, and 15 haptic stimuli per flow. The stimulus key maps each anonymous stimulus ID to its flow, generation method, and variant. The flow overview file records each participant's within-flow best and worst selections and their optional written explanations. The follow-up survey provides study-relevant background about participants' everyday technology use and their self-reported attention to haptic feedback.
+
+All 27 participants completed the full panel. Each participant rated every stimulus in all four flow blocks, producing complete ratings for five methods and three variants per method within each flow. There were no missing values in the two rating measures. Because the study used a within-subject design, the primary analysis unit is the participant-level method-by-flow summary. For each participant, flow, and method, the three variants were averaged to produce one meaningfulness score and one visual-event fit score. This aggregation preserves the repeated-measures structure of the study and avoids treating multiple variants from the same participant and condition as independent observations.
+
+Best and worst selections were analyzed separately from the Likert ratings. Within each flow, participants selected one to three haptics that they considered the strongest matches and one to three haptics that they considered the weakest matches. These anonymous selections were mapped back to generation methods using the stimulus key and then summarized as selection counts by method and flow. The follow-up survey also asked participants how confident they felt when making these best and worst selections, which allowed a confidence-weighted sensitivity check. Written explanations were analyzed with a codebook-based qualitative coding process and used to interpret the quantitative patterns.
+
+The results below combine rating summaries, best and worst selections, confidence sensitivity checks, coded written explanations, and follow-up survey responses.
+
+\section{Overall Rating Results}
+
+Figure~\ref{fig:overall-ratings} and Table~\ref{tab:overall-ratings} summarize the two per-stimulus rating measures across all four UI flows. These means are computed from participant-level method-by-flow summaries, so each participant contributes one averaged rating for each method within each flow. The results therefore describe repeated-measures differences among methods using participant-level summaries.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{Figures/results_overall_ratings.pdf}
+\caption{Overall rating results.}
+\label{fig:overall-ratings}
+\end{figure}
+
+\input{Tables/overall_rating_results_table}
+
+Overall, Semantic VAE received a mean meaningfulness rating of 4.22 and a mean visual-event fit rating of 4.01. These values place it in the stronger group of methods, close to HapticGen and Random-Plan VAE and above Random Noise and Direct LLM Pattern. Random-Plan VAE had the highest overall average rating, followed by HapticGen and Semantic VAE. The overall ratings show that Semantic VAE produced meaningful and competitive haptic feedback while the strongest VAE-based baseline also performed well.
+
+Repeated-measures tests showed an overall method effect for both rating dimensions. For meaningfulness, the Friedman test was significant, $\chi^2(4)=30.53$, $p<.001$. Post-hoc Wilcoxon signed-rank tests with Holm correction showed that Semantic VAE was rated significantly more meaningful than Random Noise ($p=.019$) and Direct LLM Pattern ($p=.048$). Differences between Semantic VAE, HapticGen, and Random-Plan VAE were not significant after correction.
+
+Visual-event fit was also affected by generation method overall, $\chi^2(4)=16.91$, $p=.002$. Semantic VAE received higher mean fit ratings than Random Noise and Direct LLM Pattern, and the uncorrected pairwise tests followed the same direction. These pairwise differences did not remain significant after Holm correction, so the fit result is interpreted together with the within-flow best and worst selections reported later in this chapter. In those direct comparisons, Semantic VAE was selected as the worst match least often, providing converging evidence that the method reduced clearly mismatched haptic feedback.
+
+The summary of findings returns to the strong performance of Random-Plan VAE and interprets it as evidence about the VAE-atlas generation backend and the preference-dependent nature of visual-to-haptic mapping.
+
+These overall ratings establish two points that guide the rest of the analysis. First, Semantic VAE is a competitive generation strategy and improves meaningfulness over weaker baselines. Second, the study outcome depends on both average ratings and selection behavior. The next sections examine how these patterns change by visual event and how participants made direct best and worst selections within each flow.
+
+\section{Results by Visual Event}
+
+The overall ratings aggregate over substantial differences across visual events. Each UI flow placed different demands on the haptic response: Payment Confirmation emphasized completion, Failed Submission emphasized error salience, Notification Received emphasized attention, and Pull to Refresh emphasized motion and progress. Figures~\ref{fig:ratings-by-flow-meaningfulness} and~\ref{fig:ratings-by-flow-fit} show the rating patterns separated by flow.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{Figures/results_by_flow_meaningfulness.pdf}
+\caption{Meaningfulness ratings by visual event.}
+\label{fig:ratings-by-flow-meaningfulness}
+\end{figure}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{Figures/results_by_flow_fit.pdf}
+\caption{Visual-event fit ratings by visual event.}
+\label{fig:ratings-by-flow-fit}
+\end{figure}
+
+For Payment Confirmation, HapticGen received the highest average rating (4.65), with Semantic VAE next (4.25) and clearly above Random Noise (3.10). This pattern suggests that the success flow rewarded haptic feedback with a clear sense of completion.
+
+For Failed Submission, Random-Plan VAE received the highest average rating (4.70), while Semantic VAE remained in the stronger group (3.98). This result suggests that error feedback benefited from salient and structured vibration patterns.
+
+Notification Received was the weakest flow for Semantic VAE. Random-Plan VAE received the highest average rating (4.68), followed by Direct LLM Pattern (4.07) and HapticGen (4.04), while Semantic VAE was lower than the other structured methods (3.78). This result suggests that notification feedback admits especially diverse preferences in salience, rhythm, and duration.
+
+Pull to Refresh produced the most unexpected pattern. Random Noise received the highest average rating (4.98), while Semantic VAE was second (4.45). This result suggests that loading and refresh events can reward continuous, energetic, or motion-like vibration, especially when the visual event includes pulling, waiting, and completion.
+
+Method effects were significant for meaningfulness in all four flows. Visual-event fit showed significant method effects for Payment Confirmation, Failed Submission, and Pull to Refresh, but not for Notification Received. This statistical pattern matches the descriptive results: notification feedback was the least clearly differentiated by fit, while the other flows produced stronger method-dependent preferences.
+
+Taken together, the by-flow results show that preference changed across visual events. Semantic VAE remained near the top in three of the four flows. This pattern motivates the later analysis of best and worst selections, where stability and rejection rate provide another view of method performance.
+
+\section{Best and Worst Selection Results}
+
+The best and worst selections provide a direct complement to the Likert ratings. The rating measures describe average perceived quality, and the selection task shows which methods produced stimuli that participants actively preferred or rejected within each flow. Because participants could select one to three stimuli for each prompt, these counts are treated as descriptive evidence.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.86\textwidth]{Figures/results_best_worst_overall.pdf}
+\caption{Best and worst selection counts.}
+\label{fig:best-worst-overall}
+\end{figure}
+
+Figure~\ref{fig:best-worst-overall} summarizes the overall selection counts by method. HapticGen received the largest number of best selections (75), followed by Random-Plan VAE (68) and Random Noise (65). Direct LLM Pattern received 45 best selections, and Semantic VAE received 42. These counts show that the methods with the highest average ratings were also more likely to produce highly preferred individual stimuli, alongside a distinction between peak preference and reliability.
+
+The worst-selection counts show a different pattern. Random Noise was rejected most often (86), followed by HapticGen and Direct LLM Pattern (58 each), Random-Plan VAE (46), and Semantic VAE (40). Semantic VAE was selected as the worst match least often. This result suggests that visual-event grounding reduced the likelihood of producing clearly inappropriate haptic feedback.
+
+Participants reported relatively high confidence in their best and worst selections ($M=5.52$, median $=6$ on a 7-point scale), with 23 of 27 participants rating their confidence at 5 or higher. A confidence-weighted sensitivity check preserved the same main pattern: Semantic VAE remained the least frequently rejected method after weighting each selection by the participant's confidence score (31.3 weighted worst selections), and it also remained lowest when the analysis was restricted to participants with confidence ratings of 5 or higher (32 worst selections). This supports the use of the unweighted selection counts as the primary descriptive result.
+
+The flow-level counts follow the same interpretation. In Payment Confirmation, HapticGen received the most best selections, and Random Noise received the most worst selections. In Failed Submission, Random-Plan VAE received the most best selections and Random Noise was rejected most often. For Notification Received, selections were more distributed across methods, consistent with the weaker fit differences reported above. For Pull to Refresh, Random Noise received many best selections, with an advantage specific to the refresh context.
+
+Overall, the selection results shift the interpretation from average quality to failure risk. HapticGen and Random-Plan VAE produced more highly preferred stimuli overall, while Semantic VAE produced the lowest number of clearly rejected stimuli. This makes the best and worst selection task the strongest evidence for Semantic VAE as a low-risk generator: it produced the fewest obviously unsuccessful matches.
+
+\section{Qualitative Explanation Themes and Follow-Up Survey}
+
+Participants' written explanations help explain why method performance differed across flows. The responses were coded with a haptic-specific codebook focused on semantic fit, timing and rhythm, intensity and salience, progress, smoothness and comfort, subtlety, and randomness and structure. Because one explanation could refer to multiple selected stimuli, these coded counts are used as interpretive evidence.
+
+\input{Tables/qualitative_theme_counts_table}
+
+As Table~\ref{tab:qualitative-themes} shows, the most common themes in best-selection explanations were semantic fit (75), timing and rhythm (55), and intensity and salience (49). Participants often treated a good haptic response as one that matched the event meaning, arrived with an appropriate temporal shape, and had enough force to be noticed. Progress and process also appeared frequently in best explanations (29), which helps explain why the Pull to Refresh flow rewarded continuous or motion-like feedback.
+
+Worst-selection explanations followed a related but sharper pattern. Semantic mismatch was again common (59), with intensity and salience (51), timing and rhythm (41), and randomness or lack of structure (32) also prominent. These responses show several failure modes: a stimulus could feel unrelated to the event, too weak, too aggressive, temporally wrong, or arbitrary.
+
+The follow-up survey supports the same interpretation. Most participants reported daily smartphone app use (26 of 27), and 22 of 27 reported noticing device vibration feedback frequently or sometimes. Participants also reported that they could clearly feel differences between haptic feedback patterns ($M=6.22$), consistently preferred certain haptics over others ($M=6.00$), formed expectations while watching the UI flows ($M=6.33$), and perceived some haptics as more meaningful or intentional than others ($M=6.48$).
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{Figures/survey_factor_ranks.pdf}
+\caption{Participant-ranked factors for haptic quality.}
+\label{fig:survey-factor-ranks}
+\end{figure}
+
+Figure~\ref{fig:survey-factor-ranks} summarizes the ranked haptic quality factors. Timing and rhythm received the highest mean importance score (4.59), followed by match with visual meaning (4.33), intensity (4.00), smoothness (3.37), and uniqueness (2.22). These responses align with the coded explanations: participants judged haptic feedback through temporal and semantic criteria, with timing and visual meaning ranked above novelty.
+
+\section{Summary of Findings}
+
+The study results support three main findings. First, Semantic VAE was competitive with the stronger generation methods and more meaningful than weaker baselines, while also producing the fewest worst selections overall. This positions it as a reliable visual-event-grounded generator with the lowest rate of clearly rejected matches.
+
+Second, the VAE-atlas backend was effective. Random-Plan VAE achieved the highest overall ratings while using the same behavior atlas, latent search, VAE decoder, timeline mixer, and ERM preprocessing pipeline as Semantic VAE. Its UI-agnostic event plan shows that the backend can generate strong haptic candidates when it explores a broader structured design space.
+
+Third, visual-to-haptic planning remains underdetermined and shaped by preference. This is the central interpretation of the results. Semantic VAE shows the value of visual-event grounding because it reduces failure risk and produces semantically reasonable feedback. Random-Plan VAE shows that participants may still prefer other structured patterns from the same generative space. Together, these findings frame visual semantics as an organizing constraint within a larger design space of valid haptic interpretations. The next chapter discusses this result as both a limitation of fixed semantic planning and an opportunity for future systems that combine visual understanding, generative exploration, and user- or context-specific adaptation.

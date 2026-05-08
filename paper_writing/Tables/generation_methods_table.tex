@@ -10,10 +10,10 @@
 \textbf{Method} & \textbf{Input / control signal} & \textbf{Uses VAE?} & \textbf{Uses visual event semantics?} & \textbf{Purpose in comparison} \\
 \hline
 Random Noise & Random 2 s sequence & $\times$ & $\times$ & Unstructured random baseline \\
-Random-Plan VAE & OpenAI-generated random event plan & \checkmark & $\times$ & Structured but UI-agnostic VAE baseline \\
-HapticGen & OpenAI-generated text prompt from UI images & $\times$ & \checkmark & Prompt-based generative haptic baseline \\
-Direct LLM Pattern & OpenAI-authored 10 ms sequence from UI images & $\times$ & \checkmark & Direct actuator-sequence baseline \\
-Semantic VAE & OpenAI-generated semantic event plan from UI images & \checkmark & \checkmark & Proposed UI-grounded semantic VAE method \\
+Random-Plan VAE & GPT-4.1-generated random event plan & \checkmark & $\times$ & Structured but UI-agnostic VAE baseline \\
+HapticGen & GPT-4.1-generated text prompt from UI images & $\times$ & \checkmark & Prompt-based generative haptic baseline \\
+Direct LLM Pattern & GPT-4.1-authored 10 ms sequence from UI images & $\times$ & \checkmark & Direct actuator-sequence baseline \\
+Semantic VAE & GPT-4.1-generated semantic event plan from UI images & \checkmark & \checkmark & Proposed UI-grounded semantic VAE method \\
 \hline
 \end{tabular}
 \end{table}

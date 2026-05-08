@@ -1,0 +1,26 @@
+\begin{appendixtable}
+\centering
+\small
+\caption{Confidence sensitivity check for best and worst selections.}
+\label{tab:confidence-sensitivity}
+\begin{singlespace}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.65in}>{\raggedright\arraybackslash}p{0.75in}rrr@{}}
+\hline
+\textbf{Method} & \textbf{Selection} & \textbf{Unweighted} & \textbf{Weighted} & \textbf{Conf. $\geq 5$} \\
+\hline
+HapticGen & Best & 75 & 60.0 & 67 \\
+Direct LLM Pattern & Best & 45 & 34.4 & 40 \\
+Random Noise & Best & 65 & 53.1 & 58 \\
+Random-Plan VAE & Best & 68 & 52.1 & 57 \\
+Semantic VAE & Best & 42 & 34.4 & 39 \\
+\hline
+HapticGen & Worst & 58 & 46.1 & 53 \\
+Direct LLM Pattern & Worst & 58 & 47.0 & 54 \\
+Random Noise & Worst & 86 & 68.0 & 77 \\
+Random-Plan VAE & Worst & 46 & 36.7 & 41 \\
+Semantic VAE & Worst & 40 & 31.3 & 32 \\
+\hline
+\end{tabular}
+\end{singlespace}
+\end{appendixtable}

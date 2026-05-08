@@ -1,9 +1,10 @@
-\begin{table}[p]
+\begin{appendixtable}
 \centering
-\small
-\caption{Full VAE training configuration.}
+\footnotesize
+\caption{VAE data, model, and training configuration.}
 \label{tab:vae-full-config}
-\renewcommand{\arraystretch}{1.05}
+\begin{singlespace}
+\renewcommand{\arraystretch}{0.95}
 \begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.25in}>{\raggedright\arraybackslash}p{1.65in}>{\raggedright\arraybackslash}p{2.35in}@{}}
 \hline
 \textbf{Category} & \textbf{Parameter} & \textbf{Value} \\
@@ -30,6 +31,22 @@ Training & Batch size & 16 \\
 Training & Maximum epochs & 600 \\
 Training & Early stopping patience & 60 \\
 Training & Optimizer learning rate & 0.0003 \\
+\hline
+\end{tabular}
+\end{singlespace}
+\end{appendixtable}
+
+\begin{appendixtable}
+\centering
+\footnotesize
+\caption{VAE loss configuration.}
+\label{tab:vae-loss-config}
+\begin{singlespace}
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.25in}>{\raggedright\arraybackslash}p{1.65in}>{\raggedright\arraybackslash}p{2.35in}@{}}
+\hline
+\textbf{Category} & \textbf{Parameter} & \textbf{Value} \\
+\hline
 Loss & Time-domain reconstruction & MSE + 0.3 L1, weighted by 2.2 \\
 Loss & Multi-scale STFT & Enabled at scales 32, 64, 128, 256 \\
 Loss & STFT scale weights & 1.6, 1.3, 0.9, 0.5 \\
@@ -44,4 +61,5 @@ Loss & KL maximum beta & 0.0002 \\
 Loss & Free bits & 0.03 \\
 \hline
 \end{tabular}
-\end{table}
+\end{singlespace}
+\end{appendixtable}

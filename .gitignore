@@ -15,6 +15,9 @@ experiments/
 *.pth
 *.ckpt
 paper_writing/Analysis/qualitative_outputs/
+paper_writing/Analysis/results_outputs/
+user_study_data/
+paper_writing/dcthesis_main_zh_review.tex
 
 # Jupyter
 .ipynb_checkpoints/

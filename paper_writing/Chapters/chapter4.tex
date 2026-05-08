@@ -2,27 +2,27 @@
 
 \section{Prototype Interface and Playback Setup}
 
-To evaluate the generated haptic stimuli, I built a browser-based panel of stimuli that presented each visual event together with a set of anonymous vibration options. The prototype was designed as an evaluation interface rather than a real-time generation interface: all haptic stimuli were generated before the study, converted into ERM-ready playback sequences, and loaded onto the study hardware. During the study, the prototype provided a controlled way for participants to experience, replay, rate, and compare those stimuli.
+To evaluate the generated haptic stimuli, I built a browser-based panel of stimuli that presented each visual event together with a set of anonymous vibration options. The prototype served as an evaluation interface: all haptic stimuli were generated before the study, converted into ERM-ready playback sequences, and loaded onto the study hardware. During the study, the prototype provided a controlled way for participants to experience, replay, rate, and compare those stimuli.
 
 \begin{figure}[!htbp]
 \centering
-\fbox{\parbox[c][2.2in][c]{0.88\textwidth}{\centering [TODO: insert prototype interface screenshot]}}
+\includegraphics[width=\textwidth]{Figures/prototype_screenshot.png}
 \caption{Prototype interface.}
 \label{fig:study-prototype}
 \end{figure}
 
-For each study block, the browser displayed one fixed UI flow and a panel of anonymous haptic cards, as shown in Figure~\ref{fig:study-prototype}. Participants clicked the cards themselves to trigger individual stimuli. Selecting a card replayed the same visual flow while sending the anonymous stimulus ID to the haptic device through the Web Serial API. This design kept the visual event constant within a block, so differences in participant ratings were attributable to the haptic stimulus rather than changes in the visual presentation.
+For each study block, the browser displayed one fixed UI flow and a panel of anonymous haptic cards, as shown in Figure~\ref{fig:study-prototype}. Participants clicked the cards themselves to trigger individual stimuli. Selecting a card replayed the same visual flow while sending the anonymous stimulus ID to the haptic device through the Web Serial API. This design kept the visual event constant within a block, so differences in participant ratings were attributable to the haptic stimulus.
 
 \begin{figure}[!htbp]
 \centering
-\fbox{\parbox[c][2.2in][c]{0.88\textwidth}{\centering [TODO: insert hardware playback diagram]}}
+\includegraphics[width=0.88\textwidth]{Figures/hardware_diagram.pdf}
 \caption{Hardware playback setup.}
 \label{fig:hardware-playback}
 \end{figure}
 
 The hardware path was the same for every stimulus, as summarized in Figure~\ref{fig:hardware-playback}. A browser event sent the selected anonymous ID over serial to an ESP32, which selected the corresponding stored sequence and streamed it to a DRV2605L haptic driver in real-time playback mode. The driver controlled an ERM motor using the 20 ms interval drive values described in Chapter 3. Participants held the ERM motor directly between their fingers while viewing the prototype, allowing them to feel each vibration as the visual flow played.
 
-The interface allowed flexible exploration within each flow block. Participants could experience the anonymous haptic cards in any order, replay a stimulus as many times as they wanted, and revise their ratings before moving to the next flow. After rating the individual stimuli, participants completed a block-level comparison on the same page, selecting one to three best-matching haptics and one to three worst-matching haptics and optionally explaining their choices in text. Method labels were hidden throughout the study, so participants only saw anonymous stimulus IDs rather than the generation method that produced each vibration.
+The interface allowed flexible exploration within each flow block. Participants could experience the anonymous haptic cards in any order, replay a stimulus as many times as they wanted, and revise their ratings before moving to the next flow. After rating the individual stimuli, participants completed a block-level comparison on the same page, selecting one to three best-matching haptics and one to three worst-matching haptics and optionally explaining their choices in text. Method labels were hidden throughout the study, so participants only saw anonymous stimulus IDs.
 
 \section{Study Stimuli}
 
@@ -41,19 +41,19 @@ Each flow was shown as an animated visual sequence. Within a flow block, the vis
 
 \section{Compared Generation Methods}
 
-The study compared five haptic generation methods, summarized in Table~\ref{tab:generation-methods}. For each UI flow, each method contributed three variants, producing 15 anonymous stimuli per flow and 60 stimuli in total. All methods produced a two-second sequence at 10 ms intervals before being converted through the shared ERM preprocessing and playback pipeline described in Chapter 3. Except for Random Noise, the methods used the same OpenAI 4.1 model as the upstream language or vision-language component. This controlled the LLM component of the comparison while varying how its output was used for haptic generation.
+The study compared five haptic generation methods, summarized in Table~\ref{tab:generation-methods}. For each UI flow, each method contributed three variants, producing 15 anonymous stimuli per flow and 60 stimuli in total. All methods produced a two-second sequence at 10 ms intervals before being converted through the shared ERM preprocessing and playback pipeline described in Chapter 3. Except for Random Noise, the methods used the same GPT-4.1 model as the upstream language or vision-language component. This controlled the LLM component of the comparison while varying how its output was used for haptic generation.
 
 \input{Tables/generation_methods_table}
 
-Random Noise generated a fully random two-second vibration sequence. It provided the lowest-level baseline: a stimulus with no visual grounding, no semantic event structure, and no learned haptic waveform prior. This condition tested whether participants were responding to structured haptic design rather than arbitrary vibration energy.
+Random Noise generated a fully random two-second vibration sequence. It provided the lowest-level baseline: a stimulus with no visual grounding, no semantic event structure, and no learned haptic waveform prior. This condition tested the role of structured haptic design against arbitrary vibration energy.
 
-Random-Plan VAE used the same downstream VAE generation pipeline as Semantic VAE, but its event plan was not grounded in the UI flow. The OpenAI 4.1 model was used to produce a random schema-valid haptic event plan, including behavior class, semantic role, style, strength, timing hint, duration hint, and prototype anchor. The plan was then passed through semantic target feature construction, atlas-guided latent search, VAE decoding, timeline mixing, and ERM export. This condition corresponds to the Random VAE condition in the study data, but it is more precisely described as a random-plan VAE baseline: it tests a structured but UI-agnostic version of the pipeline.
+Random-Plan VAE used the same downstream VAE generation pipeline as Semantic VAE with an event plan generated independently of the UI flow. The GPT-4.1 model was used to produce a random schema-valid haptic event plan, including behavior class, semantic role, style, strength, timing hint, duration hint, and prototype anchor. The plan was then passed through semantic target feature construction, atlas-guided latent search, VAE decoding, timeline mixing, and ERM export. This condition corresponds to the Random VAE condition in the study data and is more precisely described as a random-plan VAE baseline: it tests a structured UI-agnostic version of the pipeline.
 
-HapticGen served as a prompt-based generative haptic baseline. For each variant, the same UI flow images were first used to generate a text prompt through the OpenAI 4.1 model, and that prompt was then used as the input to HapticGen. The resulting waveform was converted to the same two-second sequence format and passed through the same ERM preprocessing pipeline as the other methods.
+HapticGen served as a prompt-based generative haptic baseline. For each variant, the same UI flow images were first used to generate a text prompt through the GPT-4.1 model, and that prompt was then used as the input to HapticGen. The resulting waveform was converted to the same two-second sequence format and passed through the same ERM preprocessing pipeline as the other methods.
 
-Direct LLM Pattern tested whether a language model could directly author a usable actuator-oriented sequence from the visual event. For each UI flow variant, the before, during, and after images were given to the OpenAI 4.1 model with instructions to output a two-second ERM-oriented sequence at 10 ms intervals. This method therefore used the visual event input but bypassed the VAE, behavior atlas, latent search, and timeline mixer.
+Direct LLM Pattern tested whether a language model could directly author a usable actuator-oriented sequence from the visual event. For each UI flow variant, the before, during, and after images were given to the GPT-4.1 model with instructions to output a two-second ERM-oriented sequence at 10 ms intervals. This method therefore used the visual event input but bypassed the VAE, behavior atlas, latent search, and timeline mixer.
 
-Semantic VAE was the proposed method. It used the OpenAI 4.1 model to convert the UI flow images into a semantic haptic event plan and then generated the final stimulus through the behavior atlas, semantic-feature-guided latent search, VAE decoding, event timeline mixing, and shared ERM export. Compared with Random-Plan VAE, it tests the value of grounding the semantic event plan in the visual event. Compared with HapticGen and Direct LLM Pattern, it tests the value of separating visual-event interpretation from waveform generation through an explicit semantic intermediate representation and a learned haptic latent space.
+Semantic VAE was the proposed method. It used the GPT-4.1 model to convert the UI flow images into a semantic haptic event plan and then generated the final stimulus through the behavior atlas, semantic-feature-guided latent search, VAE decoding, event timeline mixing, and shared ERM export. Compared with Random-Plan VAE, it tests the value of grounding the semantic event plan in the visual event. Compared with HapticGen and Direct LLM Pattern, it tests the value of separating visual-event interpretation from waveform generation through an explicit semantic intermediate representation and a learned haptic latent space.
 
 \section{Study Procedure}
 
@@ -61,11 +61,11 @@ The user study used a within-subject design with 27 participants. Each participa
 
 The study was organized into four flow blocks presented in a fixed order: Payment Confirmation, Failed Submission, Notification Received, and Pull to Refresh. Each block contained 15 anonymous haptic stimuli, corresponding to three variants from each of the five generation methods. Within a block, the visual flow was fixed and the anonymous card positions were randomized by a seed. Participants saw only anonymous IDs, so method labels were hidden throughout the study.
 
-Participants completed each block at their own pace. They could click the anonymous haptic cards in any order, replay any stimulus as many times as they wanted, and revise their ratings before leaving the block. Triggering a card replayed the animated UI flow and the corresponding ERM vibration together. For each stimulus, participants gave two 7-point Likert ratings: whether the haptic clearly conveyed a meaningful response and whether it fit the visual event.
+Participants completed each block at their own pace. They could click the anonymous haptic cards in any order, replay any stimulus as many times as they wanted, and revise their ratings before leaving the block. Triggering a card replayed the animated UI flow and the corresponding ERM vibration together. For each stimulus, participants gave two 7-point Likert ratings as part of the prototype interface shown in Figure~\ref{fig:study-prototype}: whether the haptic clearly conveyed a meaningful response and whether it fit the visual event.
 
 After rating the 15 stimuli in a block, participants completed a block-level comparison on the same page. They selected one to three haptics that were the best overall matches for the flow and one to three haptics that were the worst overall matches. Participants could replay stimuli while making these choices and could optionally provide text explanations for why the selected haptics were stronger or weaker fits.
 
-Participants were allowed to pause or rest at any point. Most sessions were completed in approximately 30 minutes, while some sessions lasted up to about one hour depending on how often participants replayed stimuli and revised their responses. After completing the panel, participants filled out a follow-up survey. The survey did not collect demographic variables such as age or gender; instead, it asked about study-relevant background, including frequency of electronic-device use and how often participants notice haptic feedback in everyday devices.
+Participants were allowed to pause or rest at any point. Most sessions were completed in approximately 30 minutes, while some sessions lasted up to about one hour depending on how often participants replayed stimuli and revised their responses. After completing the panel, participants filled out a follow-up survey about study-relevant background, including frequency of electronic device use and how often participants notice haptic feedback in everyday devices.
 
 \section{Measures and Analysis Plan}
 
@@ -75,4 +75,6 @@ For each stimulus, participants provided two 7-point Likert ratings. The first m
 
 The best and worst selections provide a second measure of relative preference. Because participants selected one to three strongest and weakest matches within each flow, these responses reflect direct comparison among stimuli shown under the same visual event. Anonymous stimulus IDs are mapped back to generation methods using the stimulus key, and the analysis reports selection counts and proportions by method and flow. These counts complement the Likert ratings by showing which methods were repeatedly chosen as especially strong or especially weak matches.
 
-Open-text explanations are analyzed using qualitative content analysis. Responses are coded with an explicit codebook covering themes such as semantic fit, timing and rhythm, intensity, smoothness, randomness, progress, comfort, and subtlety. A single response may receive multiple theme codes when it refers to more than one perceptual or semantic property. The qualitative analysis is used to interpret the rating and selection patterns rather than to replace them. The follow-up survey is used descriptively to contextualize participants' familiarity with electronic devices and everyday haptic feedback.
+Open-text explanations are analyzed using qualitative content analysis. Responses are coded with an explicit codebook covering themes such as semantic fit, timing and rhythm, intensity, smoothness and comfort, randomness, progress, and subtlety. A single response may receive multiple theme codes when it refers to more than one perceptual or semantic property. The qualitative analysis interprets the rating and selection patterns. The follow-up survey is used descriptively to contextualize participants' familiarity with electronic devices and everyday haptic feedback.
+
+Together, these procedures define a controlled comparison under shared visual events, interface, hardware, and response measures. The next chapter reports the quantitative and qualitative study results.
