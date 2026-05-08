@@ -205,6 +205,12 @@
 %Set the page numbering and header scheme for the frontend. 
 \renewcommand\frontmatter{%
   \@mainmatterfalse%
+  \titleformat{\chapter}[hang]
+    {\normalfont\huge\bfseries\raggedright}
+    {}
+    {0pt}
+    {}
+  \titlespacing*{\chapter}{0pt}{0pt}{24pt}
   %Headers and Footers
   \renewcommand\headrulewidth{0pt} 
   \fancyhf{}
@@ -225,12 +231,14 @@
 		{\thechapter}
 		{1em}
 		{}
+	\titlespacing*{\chapter}{0pt}{0pt}{24pt}
 			
 	\titleformat{\section}
 		{\normalfont\Large\bfseries\raggedright}
 		{\thesection}
 		{1em}
-		{}		
+		{}
+	\titlespacing*{\section}{0pt}{2.5ex plus .8ex minus .2ex}{1.2ex plus .2ex}
 			
 	\titleformat{\subsection}
 		{\bfseries}
@@ -238,6 +246,7 @@
 		{.5em}
 		{}
 		[\titlerule]
+	\titlespacing*{\subsection}{0pt}{2.0ex plus .6ex minus .2ex}{1.0ex plus .2ex}
 
 	\titleformat{\subsubsection}[runin]
 		{\bfseries\itshape}
